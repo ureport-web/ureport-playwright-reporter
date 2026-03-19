@@ -167,6 +167,52 @@ describe('categorizeSteps', () => {
   });
 });
 
+describe('categorizeSteps — nested steps', () => {
+  test('nested child appears under parent steps, not as a sibling', () => {
+    const child = makeStep({ title: 'inner step', category: 'test.step', steps: [] });
+    const parent = makeStep({ title: 'outer step', category: 'test.step', steps: [child] });
+    const result = categorizeSteps([parent, child], false);
+    expect(result.body).toHaveLength(1);
+    expect(result.body[0].detail).toBe('outer step');
+    expect(result.body[0].steps).toHaveLength(1);
+    expect(result.body[0].steps![0].detail).toBe('inner step');
+  });
+
+  test('double-counting is prevented: flat array with parent+child → only parent in output', () => {
+    const child = makeStep({ title: 'child', category: 'test.step', steps: [] });
+    const parent = makeStep({ title: 'parent', category: 'test.step', steps: [child] });
+    const result = categorizeSteps([parent, child], false);
+    expect(result.body).toHaveLength(1);
+    expect(result.body[0].detail).toBe('parent');
+  });
+
+  test('parent step without children has no steps field', () => {
+    const step = makeStep({ title: 'solo step', category: 'test.step', steps: [] });
+    const result = categorizeSteps([step], false);
+    expect(result.body[0].steps).toBeUndefined();
+  });
+
+  test('multi-level nesting (grandchild) is preserved', () => {
+    const grandchild = makeStep({ title: 'grandchild', category: 'test.step', steps: [] });
+    const child = makeStep({ title: 'child', category: 'test.step', steps: [grandchild] });
+    const parent = makeStep({ title: 'parent', category: 'test.step', steps: [child] });
+    const result = categorizeSteps([parent, child, grandchild], false);
+    expect(result.body).toHaveLength(1);
+    expect(result.body[0].steps).toHaveLength(1);
+    expect(result.body[0].steps![0].steps).toHaveLength(1);
+    expect(result.body[0].steps![0].steps![0].detail).toBe('grandchild');
+  });
+
+  test('internal test.attach child steps are excluded from nested steps', () => {
+    const attachStep = makeStep({ title: 'attach internal', category: 'test.attach', steps: [] });
+    const userStep = makeStep({ title: 'user action', category: 'test.step', steps: [] });
+    const parent = makeStep({ title: 'outer', category: 'test.step', steps: [attachStep, userStep] });
+    const result = categorizeSteps([parent], false);
+    expect(result.body[0].steps).toHaveLength(1);
+    expect(result.body[0].steps![0].detail).toBe('user action');
+  });
+});
+
 function makeResult(overrides: Partial<TestResult> = {}): TestResult {
   return {
     retry: 0,

@@ -36,6 +36,7 @@ export interface UReportStepPayload {
   status: 'PASS' | 'FAIL';
   detail: string;
   attachment?: string; // base64 encoded image
+  steps?: UReportStepPayload[];
 }
 
 export interface UReportFailure {

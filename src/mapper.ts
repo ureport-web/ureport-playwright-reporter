@@ -112,6 +112,9 @@ export function generateUid(testCase: TestCase): string {
   return testCase.title;
 }
 
+// Internal categories Playwright creates as implementation details — not user steps
+const INTERNAL_STEP_CATEGORIES = new Set(['test.attach']);
+
 function mapStep(step: TestStep, includeScreenshots: boolean): UReportStepPayload {
   let attachment: string | undefined;
 
@@ -131,11 +134,16 @@ function mapStep(step: TestStep, includeScreenshots: boolean): UReportStepPayloa
     }
   }
 
+  const childSteps = (step.steps ?? [])
+    .filter(s => !INTERNAL_STEP_CATEGORIES.has(s.category))
+    .map(s => mapStep(s, includeScreenshots));
+
   return {
     timestamp: step.startTime.toISOString(),
     status: step.error ? 'FAIL' : 'PASS',
     detail: step.title,
     ...(attachment !== undefined ? { attachment } : {}),
+    ...(childSteps.length > 0 ? { steps: childSteps } : {}),
   };
 }
 
@@ -151,6 +159,15 @@ function isTeardownHook(step: TestStep): boolean {
   return /after/i.test(step.title);
 }
 
+function getAllDescendants(step: TestStep): Set<TestStep> {
+  const result = new Set<TestStep>();
+  for (const child of step.steps ?? []) {
+    result.add(child);
+    for (const d of getAllDescendants(child)) result.add(d);
+  }
+  return result;
+}
+
 export function categorizeSteps(
   steps: TestStep[],
   includeScreenshots: boolean
@@ -159,7 +176,14 @@ export function categorizeSteps(
   const body: UReportStepPayload[] = [];
   const teardown: UReportStepPayload[] = [];
 
+  // Identify all descendants so we only process top-level steps
+  const descendants = new Set<TestStep>();
   for (const step of steps) {
+    for (const d of getAllDescendants(step)) descendants.add(d);
+  }
+  const topLevel = steps.filter(s => !descendants.has(s));
+
+  for (const step of topLevel) {
     const mapped = mapStep(step, includeScreenshots);
     if (isHookStep(step)) {
       if (isTeardownHook(step)) {
