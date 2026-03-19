@@ -21,8 +21,8 @@ export default defineConfig({
     [
       "ureport-playwright-reporter",
       {
-        serverUrl: process.env.UREPORT_URL,       // e.g. "http://localhost:4100"
-        apiToken: process.env.UREPORT_API_TOKEN,  // API token from UReport user settings
+        serverUrl: process.env.UREPORT_URL, // e.g. "http://localhost:4100"
+        apiToken: process.env.UREPORT_API_TOKEN, // API token from UReport user settings
         product: "MyApp",
         type: "E2E",
       },
@@ -48,27 +48,27 @@ export default defineConfig({
         serverUrl: process.env.UREPORT_URL,
         apiToken: process.env.UREPORT_API_TOKEN,
         product: "MyApp",
-        type: "E2E",            // 'E2E' | 'UI' | 'API' | any string
+        type: "E2E", // 'E2E' | 'UI' | 'API' | any string
 
         // --- build metadata ---
-        buildNumber: process.env.BUILD_NUMBER,  // defaults to Date.now()
+        buildNumber: process.env.BUILD_NUMBER, // defaults to Date.now()
         team: "Frontend Team",
-        browser: "chrome",                      // overrides auto-detection
-        device: "MOBILE-Pixel 5",               // overrides auto-detection
-        platform: "linux",                      // overrides process.platform
+        browser: "chrome", // overrides auto-detection
+        device: "MOBILE-Pixel 5", // overrides auto-detection
+        platform: "linux", // overrides process.platform
         platform_version: "22.04",
         stage: "staging",
-        version: "1.4.2",                       // app version under test
+        version: "1.4.2", // app version under test
 
         // --- environment & settings (auto-detected from Playwright config) ---
         environments: { baseURL: "https://staging.example.com" },
         settings: { timeout: 30000, retries: 2, workers: 4 },
 
         // --- payload control ---
-        batchSize: 50,              // test results per POST (default: 50)
-        includeSteps: true,         // send step-level detail (default: true)
-        includeScreenshots: true,   // embed screenshots as base64 (default: true)
-        saveRelations: true,        // save test relations after build (default: true)
+        batchSize: 50, // test results per POST (default: 50)
+        includeSteps: true, // send step-level detail (default: true)
+        includeScreenshots: true, // embed screenshots as base64 (default: true)
+        saveRelations: true, // save test relations after build (default: true)
         outputFile: "ureport.json", // write submitted payload to a local file
       },
     ],
@@ -78,27 +78,27 @@ export default defineConfig({
 
 ### All options
 
-| Option               | Type                      | Required | Default            | Description                                                                 |
-| -------------------- | ------------------------- | -------- | ------------------ | --------------------------------------------------------------------------- |
-| `serverUrl`          | `string`                  | Yes      | —                  | UReport server base URL                                                     |
-| `apiToken`           | `string`                  | Yes      | —                  | API token from UReport user settings                                        |
-| `product`            | `string`                  | Yes      | —                  | Product name in UReport                                                     |
-| `type`               | `string`                  | Yes      | —                  | Build type, e.g. `"E2E"`, `"UI"`, `"API"`                                  |
-| `buildNumber`        | `string \| number`        | No       | `Date.now()`       | CI build number                                                             |
-| `team`               | `string`                  | No       | —                  | Team name                                                                   |
-| `browser`            | `string`                  | No       | auto-detected      | Browser name                                                                |
-| `device`             | `string`                  | No       | auto-detected      | Device name (e.g. `"MOBILE-Pixel 5"`, `"DESKTOP-Windows"`)                 |
-| `platform`           | `string`                  | No       | `process.platform` | OS platform                                                                 |
-| `platform_version`   | `string`                  | No       | —                  | OS version string                                                           |
-| `stage`              | `string`                  | No       | —                  | Deployment stage, e.g. `"staging"`, `"prod"`                               |
-| `version`            | `string`                  | No       | —                  | Application version under test                                              |
-| `batchSize`          | `number`                  | No       | `50`               | Number of test results per POST request                                     |
-| `includeSteps`       | `boolean`                 | No       | `true`             | Send step-level detail to UReport                                           |
-| `includeScreenshots` | `boolean`                 | No       | `true`             | Embed screenshots as base64 in step payloads                                |
-| `environments`       | `Record<string, unknown>` | No       | auto-detected      | Environment metadata. Auto-detected from `use.baseURL`                      |
-| `settings`           | `Record<string, unknown>` | No       | auto-detected      | Run settings. Auto-detected from `timeout`/`retries`/`workers`              |
-| `saveRelations`      | `boolean`                 | No       | `true`             | Save test relation records after the build                                  |
-| `outputFile`         | `string`                  | No       | —                  | Write the full submitted payload to this JSON file after the run            |
+| Option               | Type                      | Required | Default            | Description                                                      |
+| -------------------- | ------------------------- | -------- | ------------------ | ---------------------------------------------------------------- |
+| `serverUrl`          | `string`                  | Yes      | —                  | UReport server base URL                                          |
+| `apiToken`           | `string`                  | Yes      | —                  | API token from UReport user settings                             |
+| `product`            | `string`                  | Yes      | —                  | Product name in UReport                                          |
+| `type`               | `string`                  | Yes      | —                  | Build type, e.g. `"E2E"`, `"UI"`, `"API"`                        |
+| `buildNumber`        | `string \| number`        | No       | `Date.now()`       | CI build number                                                  |
+| `team`               | `string`                  | No       | —                  | Team name                                                        |
+| `browser`            | `string`                  | No       | auto-detected      | Browser name                                                     |
+| `device`             | `string`                  | No       | auto-detected      | Device name (e.g. `"MOBILE-Pixel 5"`, `"DESKTOP-Windows"`)       |
+| `platform`           | `string`                  | No       | `process.platform` | OS platform                                                      |
+| `platform_version`   | `string`                  | No       | —                  | OS version string                                                |
+| `stage`              | `string`                  | No       | —                  | Deployment stage, e.g. `"staging"`, `"prod"`                     |
+| `version`            | `string`                  | No       | —                  | Application version under test                                   |
+| `batchSize`          | `number`                  | No       | `50`               | Number of test results per POST request                          |
+| `includeSteps`       | `boolean`                 | No       | `true`             | Send step-level detail to UReport                                |
+| `includeScreenshots` | `boolean`                 | No       | `true`             | Embed screenshots as base64 in step payloads                     |
+| `environments`       | `Record<string, unknown>` | No       | auto-detected      | Environment metadata. Auto-detected from `use.baseURL`           |
+| `settings`           | `Record<string, unknown>` | No       | auto-detected      | Run settings. Auto-detected from `timeout`/`retries`/`workers`   |
+| `saveRelations`      | `boolean`                 | No       | `true`             | Save test relation records after the build                       |
+| `outputFile`         | `string`                  | No       | —                  | Write the full submitted payload to this JSON file after the run |
 
 ---
 
@@ -109,9 +109,13 @@ export default defineConfig({
 Tags let you categorise tests (e.g. smoke, regression). Use Playwright's built-in tag syntax:
 
 ```ts
-test("login with valid credentials", { tag: ["@smoke", "@auth"] }, async ({ page }) => {
-  // ...
-});
+test(
+  "login with valid credentials",
+  { tag: ["@smoke", "@auth"] },
+  async ({ page }) => {
+    // ...
+  },
+);
 ```
 
 Or embed tags directly in the test title:
