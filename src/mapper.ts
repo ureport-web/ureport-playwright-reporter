@@ -1,4 +1,5 @@
 import { readFileSync } from 'fs';
+import { release } from 'os';
 import { basename, dirname, relative } from 'path';
 import type { TestCase, TestResult, TestStep, FullProject, FullConfig } from '@playwright/test/reporter';
 import type { UReportStepPayload, UReportTestPayload, UReportTestRelationPayload, UReportTestInfo, UReportStatus } from './types.js';
@@ -28,11 +29,11 @@ export function detectDevice(project: FullProject): string | undefined {
         if (androidMatch) model = androidMatch[1].trim();
       }
     }
-    return model ? `MOBILE-${model}` : 'MOBILE';
+    return model ? `MOBILE-${model.toUpperCase()}` : 'MOBILE';
   }
 
   if (isMobile === false && userAgent) {
-    return `DESKTOP-${detectOsFromUserAgent(userAgent)}`;
+    return `DESKTOP-${detectOsFromUserAgent(userAgent).toUpperCase()}`;
   }
 
   return undefined;
@@ -41,13 +42,17 @@ export function detectDevice(project: FullProject): string | undefined {
 export function detectBrowser(project: FullProject): string | undefined {
   const channel = (project.use as Record<string, unknown>).channel as string | undefined;
   if (channel) {
-    if (channel.startsWith('msedge')) return 'edge';
-    if (channel.startsWith('chrome')) return 'chrome';
-    return channel;
+    if (channel.startsWith('msedge')) return 'EDGE';
+    if (channel.startsWith('chrome')) return 'CHROME';
+    return channel.toUpperCase();
   }
   const browserName = project.use.browserName || project.use.defaultBrowserType || 'chromium';
-  if (browserName === 'webkit') return 'safari';
-  return browserName;
+  if (browserName === 'webkit') return 'SAFARI';
+  return browserName.toUpperCase();
+}
+
+export function detectPlatformVersion(): string {
+  return release();
 }
 
 export function formatDuration(ms: number): string {
@@ -219,11 +224,15 @@ export function mapTestToPayload(
   };
 
   const ARRAY_ANNOTATION_TYPES = new Set(['components', 'teams']);
+  const quickInfoSet = new Set(options.quickInfoAnnotations ?? []);
 
   for (const annotation of testCase.annotations) {
     if (annotation.type === 'ureport-uid' || annotation.description === undefined) continue;
 
-    if (ARRAY_ANNOTATION_TYPES.has(annotation.type)) {
+    if (quickInfoSet.has(annotation.type)) {
+      const existing = (info.quickInfo as Array<{ key: string; value: string }> | undefined) ?? [];
+      info.quickInfo = [...existing, { key: annotation.type, value: annotation.description }];
+    } else if (ARRAY_ANNOTATION_TYPES.has(annotation.type)) {
       const existing = (info[annotation.type] as string[] | undefined) ?? [];
       info[annotation.type] = [...existing, annotation.description];
     } else {
@@ -282,7 +291,7 @@ export function detectSettings(config: FullConfig): Record<string, unknown> | un
 }
 
 // Keys on info that map to dedicated relation fields — not put into customs.
-const RELATION_INFO_KEYS = new Set(['file', 'path', 'tags', 'components', 'teams', 'duration']);
+const RELATION_INFO_KEYS = new Set(['file', 'path', 'tags', 'components', 'teams', 'duration', 'quickInfo']);
 
 export function mapTestToRelationPayload(
   test: UReportTestPayload,

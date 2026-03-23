@@ -53,9 +53,9 @@ export default defineConfig({
         // --- build metadata ---
         buildNumber: process.env.BUILD_NUMBER, // defaults to Date.now()
         team: "Frontend Team",
-        browser: "chrome", // overrides auto-detection
-        device: "MOBILE-Pixel 5", // overrides auto-detection
-        platform: "linux", // overrides process.platform
+        browser: "CHROME", // overrides auto-detection
+        device: "MOBILE-PIXEL 5", // overrides auto-detection
+        platform: "linux", // overrides auto-detection
         platform_version: "22.04",
         stage: "staging",
         version: "1.4.2", // app version under test
@@ -69,7 +69,6 @@ export default defineConfig({
         includeSteps: true, // send step-level detail (default: true)
         includeScreenshots: true, // embed screenshots as base64 (default: true)
         saveRelations: true, // save test relations after build (default: true)
-        outputFile: "ureport.json", // write submitted payload to a local file
       },
     ],
   ],
@@ -86,10 +85,10 @@ export default defineConfig({
 | `type`               | `string`                  | Yes      | —                  | Build type, e.g. `"E2E"`, `"UI"`, `"API"`                        |
 | `buildNumber`        | `string \| number`        | No       | `Date.now()`       | CI build number                                                  |
 | `team`               | `string`                  | No       | —                  | Team name                                                        |
-| `browser`            | `string`                  | No       | auto-detected      | Browser name                                                     |
-| `device`             | `string`                  | No       | auto-detected      | Device name (e.g. `"MOBILE-Pixel 5"`, `"DESKTOP-Windows"`)       |
-| `platform`           | `string`                  | No       | `process.platform` | OS platform                                                      |
-| `platform_version`   | `string`                  | No       | —                  | OS version string                                                |
+| `browser`            | `string`                  | No       | auto-detected      | Browser name (e.g. `"CHROME"`, `"FIREFOX"`)                      |
+| `device`             | `string`                  | No       | auto-detected      | Device name (e.g. `"MOBILE-PIXEL 5"`, `"DESKTOP-WINDOWS"`)       |
+| `platform`           | `string`                  | No       | auto-detected      | OS platform                                                      |
+| `platform_version`   | `string`                  | No       | auto-detected      | OS version string (from `os.release()`)                          |
 | `stage`              | `string`                  | No       | —                  | Deployment stage, e.g. `"staging"`, `"prod"`                     |
 | `version`            | `string`                  | No       | —                  | Application version under test                                   |
 | `batchSize`          | `number`                  | No       | `50`               | Number of test results per POST request                          |
@@ -97,8 +96,9 @@ export default defineConfig({
 | `includeScreenshots` | `boolean`                 | No       | `true`             | Embed screenshots as base64 in step payloads                     |
 | `environments`       | `Record<string, unknown>` | No       | auto-detected      | Environment metadata. Auto-detected from `use.baseURL`           |
 | `settings`           | `Record<string, unknown>` | No       | auto-detected      | Run settings. Auto-detected from `timeout`/`retries`/`workers`   |
+| `autoDetectPlatform` | `boolean`                 | No       | `true`             | Set to false to disable auto-detection of platform and platform_version |
 | `saveRelations`      | `boolean`                 | No       | `true`             | Save test relation records after the build                       |
-| `outputFile`         | `string`                  | No       | —                  | Write the full submitted payload to this JSON file after the run |
+| `quickInfoAnnotations` | `string[]`              | No       | `[]`               | Annotation types treated as execution-specific quick info. Values are stored per-test-run in `test.info.quickInfo` and surfaced in the UReport test detail view with a one-click copy button. Never saved to test relations (values differ every run). |
 
 ---
 
@@ -204,6 +204,22 @@ test(
     // ...
   },
 );
+```
+
+### Quick Info
+
+**Quick Info** is for execution-specific values you want instantly accessible in the UReport test detail view — things like a trace URL, a log link, a distributed-trace ID, or a session token. Each item appears as a labelled row with a copy-to-clipboard button, so you can jump straight from a failed test to the relevant trace or log without hunting through CI output.
+
+Because these values change every run they are **never** persisted in test relations.
+
+```ts
+// playwright.config.ts
+quickInfoAnnotations: ['trace_url', 'session_id', 'log_url']
+
+// in a test (or a beforeEach / fixture):
+test.info().annotations.push({ type: 'trace_url', description: `https://trace.playwright.dev/?trace=${traceUrl}` });
+test.info().annotations.push({ type: 'session_id', description: sessionId });
+test.info().annotations.push({ type: 'log_url', description: `https://logs.example.com/runs/${runId}` });
 ```
 
 ### Override test UID

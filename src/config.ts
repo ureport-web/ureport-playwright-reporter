@@ -24,6 +24,17 @@ export interface UReportReporterOptions {
    * Set to false to skip the /api/test_relation calls entirely.
    */
   saveRelations?: boolean;
+  /**
+   * Auto-detect platform and platform_version from the OS. Default: true.
+   * Set to false to suppress auto-detection (explicit values still apply).
+   */
+  autoDetectPlatform?: boolean;
+  /**
+   * Annotation types that should be stored as quickInfo (key/value pairs on test.info.quickInfo).
+   * These values are execution-specific and are never saved to test relations.
+   * Example: ['env', 'build_url', 'run_id']
+   */
+  quickInfoAnnotations?: string[];
 }
 
 export const DEFAULT_OPTIONS = {

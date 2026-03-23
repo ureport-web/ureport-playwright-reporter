@@ -1,5 +1,5 @@
-import { mapStatus, generateUid, categorizeSteps, extractTags, mapTestToPayload, mapTestToRelationPayload, formatDuration } from '../src/mapper';
-import type { TestCase, TestResult, TestStep } from '@playwright/test/reporter';
+import { mapStatus, generateUid, categorizeSteps, extractTags, mapTestToPayload, mapTestToRelationPayload, formatDuration, detectBrowser, detectDevice, detectPlatformVersion } from '../src/mapper';
+import type { TestCase, TestResult, TestStep, FullProject } from '@playwright/test/reporter';
 import type { UReportReporterOptions } from '../src/config';
 
 function makeTestCase(overrides: Partial<TestCase> = {}): TestCase {
@@ -371,5 +371,125 @@ describe('mapTestToRelationPayload', () => {
   test('omits customs when no non-reserved keys exist', () => {
     const rel = mapTestToRelationPayload(makeTestPayload(), makeOptions());
     expect(rel.customs).toBeUndefined();
+  });
+});
+
+describe('quickInfo annotations', () => {
+  test('quickInfo annotation goes to info.quickInfo as [{ key, value }], not top-level', () => {
+    const tc = makeTestCase({
+      annotations: [{ type: 'trace_url', description: 'https://trace.example.com/123' }],
+    });
+    const payload = mapTestToPayload(tc, makeResult(), 'build-1', [], makeOptions({ quickInfoAnnotations: ['trace_url'] }), '/project');
+    expect(payload.info?.quickInfo).toEqual([{ key: 'trace_url', value: 'https://trace.example.com/123' }]);
+    expect(payload.info?.['trace_url']).toBeUndefined();
+  });
+
+  test('multiple quickInfo annotations accumulate into the array', () => {
+    const tc = makeTestCase({
+      annotations: [
+        { type: 'trace_url', description: 'https://trace.example.com/123' },
+        { type: 'session_id', description: 'abc-456' },
+        { type: 'trace_url', description: 'https://trace.example.com/456' },
+      ],
+    });
+    const payload = mapTestToPayload(tc, makeResult(), 'build-1', [], makeOptions({ quickInfoAnnotations: ['trace_url', 'session_id'] }), '/project');
+    expect(payload.info?.quickInfo).toEqual([
+      { key: 'trace_url', value: 'https://trace.example.com/123' },
+      { key: 'session_id', value: 'abc-456' },
+      { key: 'trace_url', value: 'https://trace.example.com/456' },
+    ]);
+  });
+
+  test('non-quickInfo annotations are unaffected and still top-level on info', () => {
+    const tc = makeTestCase({
+      annotations: [
+        { type: 'trace_url', description: 'https://trace.example.com/123' },
+        { type: 'jira', description: 'PROJ-42' },
+      ],
+    });
+    const payload = mapTestToPayload(tc, makeResult(), 'build-1', [], makeOptions({ quickInfoAnnotations: ['trace_url'] }), '/project');
+    expect(payload.info?.['jira']).toBe('PROJ-42');
+    expect(payload.info?.quickInfo).toEqual([{ key: 'trace_url', value: 'https://trace.example.com/123' }]);
+  });
+
+  test('mapTestToRelationPayload — quickInfo does NOT appear in relation.customs', () => {
+    const tc = makeTestCase({
+      annotations: [{ type: 'trace_url', description: 'https://trace.example.com/123' }],
+    });
+    const payload = mapTestToPayload(tc, makeResult(), 'build-1', [], makeOptions({ quickInfoAnnotations: ['trace_url'] }), '/project');
+    const rel = mapTestToRelationPayload(payload, makeOptions({ quickInfoAnnotations: ['trace_url'] }));
+    expect(rel.customs?.['quickInfo']).toBeUndefined();
+    expect(rel.customs?.['trace_url']).toBeUndefined();
+  });
+
+  test('mapTestToRelationPayload — normal custom annotations still appear in relation.customs', () => {
+    const tc = makeTestCase({
+      annotations: [
+        { type: 'trace_url', description: 'https://trace.example.com/123' },
+        { type: 'jira', description: 'PROJ-42' },
+      ],
+    });
+    const payload = mapTestToPayload(tc, makeResult(), 'build-1', [], makeOptions({ quickInfoAnnotations: ['trace_url'] }), '/project');
+    const rel = mapTestToRelationPayload(payload, makeOptions({ quickInfoAnnotations: ['trace_url'] }));
+    expect(rel.customs?.['jira']).toBe('PROJ-42');
+  });
+});
+
+function makeProject(use: Record<string, unknown>): FullProject {
+  return { use } as unknown as FullProject;
+}
+
+describe('detectBrowser', () => {
+  test('chromium project → CHROMIUM', () => {
+    expect(detectBrowser(makeProject({ browserName: 'chromium' }))).toBe('CHROMIUM');
+  });
+
+  test('webkit project → SAFARI', () => {
+    expect(detectBrowser(makeProject({ browserName: 'webkit' }))).toBe('SAFARI');
+  });
+
+  test('firefox project → FIREFOX', () => {
+    expect(detectBrowser(makeProject({ browserName: 'firefox' }))).toBe('FIREFOX');
+  });
+
+  test('channel chrome-beta → CHROME', () => {
+    expect(detectBrowser(makeProject({ channel: 'chrome-beta' }))).toBe('CHROME');
+  });
+
+  test('channel msedge → EDGE', () => {
+    expect(detectBrowser(makeProject({ channel: 'msedge' }))).toBe('EDGE');
+  });
+});
+
+describe('detectDevice', () => {
+  const iphoneUA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)';
+  const androidUA = 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36';
+  const windowsUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+
+  test('iPhone user agent + isMobile → MOBILE-IPHONE', () => {
+    expect(detectDevice(makeProject({ isMobile: true, userAgent: iphoneUA }))).toBe('MOBILE-IPHONE');
+  });
+
+  test('Android Pixel 5 user agent + isMobile → MOBILE-PIXEL 5', () => {
+    expect(detectDevice(makeProject({ isMobile: true, userAgent: androidUA }))).toBe('MOBILE-PIXEL 5');
+  });
+
+  test('isMobile=false + Windows user agent → DESKTOP-WINDOWS', () => {
+    expect(detectDevice(makeProject({ isMobile: false, userAgent: windowsUA }))).toBe('DESKTOP-WINDOWS');
+  });
+
+  test('isMobile=true + no user agent → MOBILE', () => {
+    expect(detectDevice(makeProject({ isMobile: true }))).toBe('MOBILE');
+  });
+
+  test('no isMobile → undefined', () => {
+    expect(detectDevice(makeProject({}))).toBeUndefined();
+  });
+});
+
+describe('detectPlatformVersion', () => {
+  test('returns a non-empty string', () => {
+    expect(typeof detectPlatformVersion()).toBe('string');
+    expect(detectPlatformVersion().length).toBeGreaterThan(0);
   });
 });

@@ -60,6 +60,7 @@ export interface UReportTestInfo {
   components?: string[];
   teams?: string[];
   duration?: string; // e.g. "4.2s"
+  quickInfo?: Array<{ key: string; value: string }>;
   [key: string]: unknown;
 }
 
