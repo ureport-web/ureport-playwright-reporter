@@ -157,7 +157,7 @@ describe('scenario: default config', () => {
   test('build request auto-detects browser from Playwright project config', () => {
     const body = server.firstRequestTo('/api/build')?.body as Record<string, unknown>;
     // fixture config has no explicit browser — Playwright defaults to chromium
-    expect(body.browser).toBe('chromium');
+    expect(body.browser).toBe('CHROMIUM');
   });
 
   test('buildId from server response is stored and used in all subsequent calls', () => {
@@ -552,9 +552,9 @@ describe('scenario: device auto-detection from project use.isMobile + userAgent'
 
   afterAll(() => server.stop());
 
-  test('build payload has device auto-detected as MOBILE-Pixel 5', () => {
+  test('build payload has device auto-detected as MOBILE-PIXEL 5', () => {
     const body = server.firstRequestTo('/api/build')?.body as Record<string, unknown>;
-    expect(body.device).toBe('MOBILE-Pixel 5');
+    expect(body.device).toBe('MOBILE-PIXEL 5');
   });
 
   test('build payload has no explicit device option — value came from project config', () => {
