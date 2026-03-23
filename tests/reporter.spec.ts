@@ -11,25 +11,25 @@ function makeConfig(overrides: Partial<FullConfig> = {}): FullConfig {
 
 describe('detectDevice', () => {
   // mobile
-  test('iPhone UA + isMobile → MOBILE-iPhone', () => {
+  test('iPhone UA + isMobile → MOBILE-IPHONE', () => {
     expect(detectDevice(makeProject({
       isMobile: true,
       userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Mobile/15E148 Safari/604.1',
-    }))).toBe('MOBILE-iPhone');
+    }))).toBe('MOBILE-IPHONE');
   });
 
-  test('iPad UA + isMobile → MOBILE-iPad', () => {
+  test('iPad UA + isMobile → MOBILE-IPAD', () => {
     expect(detectDevice(makeProject({
       isMobile: true,
       userAgent: 'Mozilla/5.0 (iPad; CPU OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Mobile/15E148 Safari/604.1',
-    }))).toBe('MOBILE-iPad');
+    }))).toBe('MOBILE-IPAD');
   });
 
-  test('Android Pixel UA + isMobile → MOBILE-Pixel 5', () => {
+  test('Android Pixel UA + isMobile → MOBILE-PIXEL 5', () => {
     expect(detectDevice(makeProject({
       isMobile: true,
       userAgent: 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4812.0 Mobile Safari/537.36',
-    }))).toBe('MOBILE-Pixel 5');
+    }))).toBe('MOBILE-PIXEL 5');
   });
 
   test('Android Samsung UA + isMobile → MOBILE-SM-G965U', () => {
@@ -44,32 +44,32 @@ describe('detectDevice', () => {
   });
 
   // desktop
-  test('Windows UA + isMobile false → DESKTOP-Windows', () => {
+  test('Windows UA + isMobile false → DESKTOP-WINDOWS', () => {
     expect(detectDevice(makeProject({
       isMobile: false,
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.0.0 Safari/537.36',
-    }))).toBe('DESKTOP-Windows');
+    }))).toBe('DESKTOP-WINDOWS');
   });
 
-  test('macOS UA + isMobile false → DESKTOP-macOS', () => {
+  test('macOS UA + isMobile false → DESKTOP-MACOS', () => {
     expect(detectDevice(makeProject({
       isMobile: false,
       userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.0.0 Safari/537.36',
-    }))).toBe('DESKTOP-macOS');
+    }))).toBe('DESKTOP-MACOS');
   });
 
-  test('Linux UA + isMobile false → DESKTOP-Linux', () => {
+  test('Linux UA + isMobile false → DESKTOP-LINUX', () => {
     expect(detectDevice(makeProject({
       isMobile: false,
       userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.0.0 Safari/537.36',
-    }))).toBe('DESKTOP-Linux');
+    }))).toBe('DESKTOP-LINUX');
   });
 
-  test('ChromeOS UA + isMobile false → DESKTOP-ChromeOS', () => {
+  test('ChromeOS UA + isMobile false → DESKTOP-CHROMEOS', () => {
     expect(detectDevice(makeProject({
       isMobile: false,
       userAgent: 'Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.0.0 Safari/537.36',
-    }))).toBe('DESKTOP-ChromeOS');
+    }))).toBe('DESKTOP-CHROMEOS');
   });
 
   // no info
@@ -80,54 +80,54 @@ describe('detectDevice', () => {
 
 describe('detectBrowser', () => {
   // channel takes priority
-  test('chrome channel → chrome', () => {
-    expect(detectBrowser(makeProject({ channel: 'chrome' }))).toBe('chrome');
+  test('chrome channel → CHROME', () => {
+    expect(detectBrowser(makeProject({ channel: 'chrome' }))).toBe('CHROME');
   });
 
-  test('chrome-beta channel → chrome', () => {
-    expect(detectBrowser(makeProject({ channel: 'chrome-beta' }))).toBe('chrome');
+  test('chrome-beta channel → CHROME', () => {
+    expect(detectBrowser(makeProject({ channel: 'chrome-beta' }))).toBe('CHROME');
   });
 
-  test('msedge channel → edge', () => {
-    expect(detectBrowser(makeProject({ channel: 'msedge' }))).toBe('edge');
+  test('msedge channel → EDGE', () => {
+    expect(detectBrowser(makeProject({ channel: 'msedge' }))).toBe('EDGE');
   });
 
-  test('msedge-beta channel → edge', () => {
-    expect(detectBrowser(makeProject({ channel: 'msedge-beta' }))).toBe('edge');
+  test('msedge-beta channel → EDGE', () => {
+    expect(detectBrowser(makeProject({ channel: 'msedge-beta' }))).toBe('EDGE');
   });
 
-  test('unknown channel passes through as-is', () => {
-    expect(detectBrowser(makeProject({ channel: 'electron' }))).toBe('electron');
+  test('unknown channel passes through uppercased', () => {
+    expect(detectBrowser(makeProject({ channel: 'electron' }))).toBe('ELECTRON');
   });
 
   // browserName fallback
-  test('webkit browserName → safari', () => {
-    expect(detectBrowser(makeProject({ browserName: 'webkit' }))).toBe('safari');
+  test('webkit browserName → SAFARI', () => {
+    expect(detectBrowser(makeProject({ browserName: 'webkit' }))).toBe('SAFARI');
   });
 
-  test('chromium browserName → chromium', () => {
-    expect(detectBrowser(makeProject({ browserName: 'chromium' }))).toBe('chromium');
+  test('chromium browserName → CHROMIUM', () => {
+    expect(detectBrowser(makeProject({ browserName: 'chromium' }))).toBe('CHROMIUM');
   });
 
-  test('firefox browserName → firefox', () => {
-    expect(detectBrowser(makeProject({ browserName: 'firefox' }))).toBe('firefox');
+  test('firefox browserName → FIREFOX', () => {
+    expect(detectBrowser(makeProject({ browserName: 'firefox' }))).toBe('FIREFOX');
   });
 
   // channel overrides browserName
   test('channel overrides browserName', () => {
-    expect(detectBrowser(makeProject({ browserName: 'chromium', channel: 'chrome' }))).toBe('chrome');
+    expect(detectBrowser(makeProject({ browserName: 'chromium', channel: 'chrome' }))).toBe('CHROME');
   });
 
   test('falls back to defaultBrowserType when browserName not set', () => {
-    expect(detectBrowser(makeProject({ defaultBrowserType: 'chromium' }))).toBe('chromium');
+    expect(detectBrowser(makeProject({ defaultBrowserType: 'chromium' }))).toBe('CHROMIUM');
   });
 
-  test('defaultBrowserType webkit → safari', () => {
-    expect(detectBrowser(makeProject({ defaultBrowserType: 'webkit' }))).toBe('safari');
+  test('defaultBrowserType webkit → SAFARI', () => {
+    expect(detectBrowser(makeProject({ defaultBrowserType: 'webkit' }))).toBe('SAFARI');
   });
 
-  test('no browser info → chromium (Playwright default)', () => {
-    expect(detectBrowser(makeProject({}))).toBe('chromium');
+  test('no browser info → CHROMIUM (Playwright default)', () => {
+    expect(detectBrowser(makeProject({}))).toBe('CHROMIUM');
   });
 });
 

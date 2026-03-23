@@ -11,7 +11,7 @@ import type {
 import { validateOptions } from './config.js';
 import type { UReportReporterOptions } from './config.js';
 import { UReportApiClient } from './api-client.js';
-import { mapTestToPayload, mapTestToRelationPayload, detectBrowser, detectDevice, detectEnvironments, detectSettings } from './mapper.js';
+import { mapTestToPayload, mapTestToRelationPayload, detectBrowser, detectDevice, detectEnvironments, detectSettings, detectPlatformVersion } from './mapper.js';
 import type { UReportBuildPayload, UReportTestPayload, UReportTestRelationPayload } from './types.js';
 
 export class UReportReporter implements Reporter {
@@ -46,8 +46,9 @@ export class UReportReporter implements Reporter {
       }
     }
 
-    if (!this.options.platform) {
-      this.options.platform = process.platform;
+    if (this.options.autoDetectPlatform !== false) {
+      if (!this.options.platform) this.options.platform = process.platform;
+      if (!this.options.platform_version) this.options.platform_version = detectPlatformVersion();
     }
 
     if (!this.options.environments) {
