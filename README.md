@@ -1,6 +1,6 @@
 # ureport-playwright-reporter
 
-A Playwright reporter that automatically ships test results to [UReport](https://github.com/your-org/ureport).
+A Playwright reporter that automatically ships test results to [UReport](https://github.com/ureport-web/ureport-standalone).
 
 ## Install
 
@@ -77,28 +77,28 @@ export default defineConfig({
 
 ### All options
 
-| Option               | Type                      | Required | Default            | Description                                                      |
-| -------------------- | ------------------------- | -------- | ------------------ | ---------------------------------------------------------------- |
-| `serverUrl`          | `string`                  | Yes      | —                  | UReport server base URL                                          |
-| `apiToken`           | `string`                  | Yes      | —                  | API token from UReport user settings                             |
-| `product`            | `string`                  | Yes      | —                  | Product name in UReport                                          |
-| `type`               | `string`                  | Yes      | —                  | Build type, e.g. `"E2E"`, `"UI"`, `"API"`                        |
-| `buildNumber`        | `string \| number`        | No       | `Date.now()`       | CI build number                                                  |
-| `team`               | `string`                  | No       | —                  | Team name                                                        |
-| `browser`            | `string`                  | No       | auto-detected      | Browser name (e.g. `"CHROME"`, `"FIREFOX"`)                      |
-| `device`             | `string`                  | No       | auto-detected      | Device name (e.g. `"MOBILE-PIXEL 5"`, `"DESKTOP-WINDOWS"`)       |
-| `platform`           | `string`                  | No       | auto-detected      | OS platform                                                      |
-| `platform_version`   | `string`                  | No       | auto-detected      | OS version string (from `os.release()`)                          |
-| `stage`              | `string`                  | No       | —                  | Deployment stage, e.g. `"staging"`, `"prod"`                     |
-| `version`            | `string`                  | No       | —                  | Application version under test                                   |
-| `batchSize`          | `number`                  | No       | `50`               | Number of test results per POST request                          |
-| `includeSteps`       | `boolean`                 | No       | `true`             | Send step-level detail to UReport                                |
-| `includeScreenshots` | `boolean`                 | No       | `true`             | Embed screenshots as base64 in step payloads                     |
-| `environments`       | `Record<string, unknown>` | No       | auto-detected      | Environment metadata. Auto-detected from `use.baseURL`           |
-| `settings`           | `Record<string, unknown>` | No       | auto-detected      | Run settings. Auto-detected from `timeout`/`retries`/`workers`   |
-| `autoDetectPlatform` | `boolean`                 | No       | `true`             | Set to false to disable auto-detection of platform and platform_version |
-| `saveRelations`      | `boolean`                 | No       | `true`             | Save test relation records after the build                       |
-| `quickInfoAnnotations` | `string[]`              | No       | `[]`               | Annotation types treated as execution-specific quick info. Values are stored per-test-run in `test.info.quickInfo` and surfaced in the UReport test detail view with a one-click copy button. Never saved to test relations (values differ every run). |
+| Option                 | Type                      | Required | Default       | Description                                                                                                                                                                                                                                            |
+| ---------------------- | ------------------------- | -------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `serverUrl`            | `string`                  | Yes      | —             | UReport server base URL                                                                                                                                                                                                                                |
+| `apiToken`             | `string`                  | Yes      | —             | API token from UReport user settings                                                                                                                                                                                                                   |
+| `product`              | `string`                  | Yes      | —             | Product name in UReport                                                                                                                                                                                                                                |
+| `type`                 | `string`                  | Yes      | —             | Build type, e.g. `"E2E"`, `"UI"`, `"API"`                                                                                                                                                                                                              |
+| `buildNumber`          | `string \| number`        | No       | `Date.now()`  | CI build number                                                                                                                                                                                                                                        |
+| `team`                 | `string`                  | No       | —             | Team name                                                                                                                                                                                                                                              |
+| `browser`              | `string`                  | No       | auto-detected | Browser name (e.g. `"CHROME"`, `"FIREFOX"`)                                                                                                                                                                                                            |
+| `device`               | `string`                  | No       | auto-detected | Device name (e.g. `"MOBILE-PIXEL 5"`, `"DESKTOP-WINDOWS"`)                                                                                                                                                                                             |
+| `platform`             | `string`                  | No       | auto-detected | OS platform                                                                                                                                                                                                                                            |
+| `platform_version`     | `string`                  | No       | auto-detected | OS version string (from `os.release()`)                                                                                                                                                                                                                |
+| `stage`                | `string`                  | No       | —             | Deployment stage, e.g. `"staging"`, `"prod"`                                                                                                                                                                                                           |
+| `version`              | `string`                  | No       | —             | Application version under test                                                                                                                                                                                                                         |
+| `batchSize`            | `number`                  | No       | `50`          | Number of test results per POST request                                                                                                                                                                                                                |
+| `includeSteps`         | `boolean`                 | No       | `true`        | Send step-level detail to UReport                                                                                                                                                                                                                      |
+| `includeScreenshots`   | `boolean`                 | No       | `true`        | Embed screenshots as base64 in step payloads                                                                                                                                                                                                           |
+| `environments`         | `Record<string, unknown>` | No       | auto-detected | Environment metadata. Auto-detected from `use.baseURL`                                                                                                                                                                                                 |
+| `settings`             | `Record<string, unknown>` | No       | auto-detected | Run settings. Auto-detected from `timeout`/`retries`/`workers`                                                                                                                                                                                         |
+| `autoDetectPlatform`   | `boolean`                 | No       | `true`        | Set to false to disable auto-detection of platform and platform_version                                                                                                                                                                                |
+| `saveRelations`        | `boolean`                 | No       | `true`        | Save test relation records after the build                                                                                                                                                                                                             |
+| `quickInfoAnnotations` | `string[]`                | No       | `[]`          | Annotation types treated as execution-specific quick info. Values are stored per-test-run in `test.info.quickInfo` and surfaced in the UReport test detail view with a one-click copy button. Never saved to test relations (values differ every run). |
 
 ---
 
@@ -214,12 +214,22 @@ Because these values change every run they are **never** persisted in test relat
 
 ```ts
 // playwright.config.ts
-quickInfoAnnotations: ['trace_url', 'session_id', 'log_url']
+quickInfoAnnotations: ["trace_url", "session_id", "log_url"];
 
 // in a test (or a beforeEach / fixture):
-test.info().annotations.push({ type: 'trace_url', description: `https://trace.playwright.dev/?trace=${traceUrl}` });
-test.info().annotations.push({ type: 'session_id', description: sessionId });
-test.info().annotations.push({ type: 'log_url', description: `https://logs.example.com/runs/${runId}` });
+test
+  .info()
+  .annotations.push({
+    type: "trace_url",
+    description: `https://trace.playwright.dev/?trace=${traceUrl}`,
+  });
+test.info().annotations.push({ type: "session_id", description: sessionId });
+test
+  .info()
+  .annotations.push({
+    type: "log_url",
+    description: `https://logs.example.com/runs/${runId}`,
+  });
 ```
 
 ### Override test UID
@@ -272,7 +282,12 @@ Use `test.info().attach()` inside a `test.step()` to attach structured content. 
 
 ```ts
 test("login API returns token", async ({ request }) => {
-  test.info().annotations.push({ type: "ureport-uid", description: "auth-login-api-001" });
+  test
+    .info()
+    .annotations.push({
+      type: "ureport-uid",
+      description: "auth-login-api-001",
+    });
 
   const response = await request.post("/api/login", {
     data: { username: "alice", password: "secret" },
@@ -311,12 +326,12 @@ await test.info().attach("server-log", {
 });
 ```
 
-| `contentType`                    | UReport view formats |
-| -------------------------------- | -------------------- |
-| `application/json`               | JSON, XML            |
-| `application/xml` / `text/xml`   | XML                  |
-| `text/x-curl`                    | curl, text           |
-| `text/plain`                     | text                 |
+| `contentType`                  | UReport view formats |
+| ------------------------------ | -------------------- |
+| `application/json`             | JSON, XML            |
+| `application/xml` / `text/xml` | XML                  |
+| `text/x-curl`                  | curl, text           |
+| `text/plain`                   | text                 |
 
 > Only the first content attachment per step is captured. Screenshots and content attachments are independent — a step can have both.
 
