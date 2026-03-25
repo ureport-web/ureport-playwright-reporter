@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import { release } from 'os';
 import { basename, dirname, relative } from 'path';
 import type { TestCase, TestResult, TestStep, FullProject, FullConfig } from '@playwright/test/reporter';
-import type { UReportStepPayload, UReportTestPayload, UReportTestRelationPayload, UReportTestInfo, UReportStatus } from './types.js';
+import type { UReportStepAttachment, UReportStepPayload, UReportTestPayload, UReportTestRelationPayload, UReportTestInfo, UReportStatus } from './types.js';
 import type { UReportReporterOptions } from './config.js';
 
 
@@ -120,22 +120,68 @@ export function generateUid(testCase: TestCase): string {
 // Internal categories Playwright creates as implementation details — not user steps
 const INTERNAL_STEP_CATEGORIES = new Set(['test.attach']);
 
-function mapStep(step: TestStep, includeScreenshots: boolean): UReportStepPayload {
-  let attachment: string | undefined;
+const CONTENT_TYPE_MAP: Record<string, string> = {
+  'application/json': 'json,xml',
+  'application/xml':  'xml',
+  'text/xml':         'xml',
+  'text/x-curl':      'curl,text',
+  'text/plain':       'text',
+};
 
-  if (includeScreenshots && step.attachments) {
-    const imageAttachment = step.attachments.find(
+function readToBase64(att: { path?: string; body?: Buffer }): string | undefined {
+  if (att.path) {
+    try {
+      return readFileSync(att.path).toString('base64');
+    } catch {
+      return undefined;
+    }
+  }
+  if (att.body) {
+    return att.body.toString('base64');
+  }
+  return undefined;
+}
+
+function readToText(att: { path?: string; body?: Buffer }): string | undefined {
+  if (att.path) {
+    try {
+      return readFileSync(att.path, 'utf8');
+    } catch {
+      return undefined;
+    }
+  }
+  if (att.body) {
+    return att.body.toString('utf8');
+  }
+  return undefined;
+}
+
+function mapStep(step: TestStep, includeScreenshots: boolean): UReportStepPayload {
+  let attachment: UReportStepAttachment | undefined;
+
+  if (step.attachments?.length) {
+    const imageAtt = step.attachments.find(
       (a) => a.contentType === 'image/png' || a.contentType === 'image/jpeg'
     );
-    if (imageAttachment?.path) {
-      try {
-        const data = readFileSync(imageAttachment.path);
-        attachment = data.toString('base64');
-      } catch {
-        // ignore read errors
+    const contentAtt = step.attachments.find(
+      (a) => CONTENT_TYPE_MAP[a.contentType]
+    );
+
+    const screenshotB64 = includeScreenshots && imageAtt
+      ? readToBase64(imageAtt)
+      : undefined;
+
+    const contentStr = contentAtt
+      ? readToText(contentAtt)
+      : undefined;
+
+    if (screenshotB64 || contentStr) {
+      attachment = {};
+      if (screenshotB64) attachment.screenshot = screenshotB64;
+      if (contentStr) {
+        attachment.content = contentStr;
+        attachment['content-type'] = CONTENT_TYPE_MAP[contentAtt!.contentType];
       }
-    } else if (imageAttachment?.body) {
-      attachment = imageAttachment.body.toString('base64');
     }
   }
 

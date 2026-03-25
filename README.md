@@ -266,6 +266,60 @@ test("checkout flow", async ({ page }) => {
 
 Hook steps (beforeEach/afterEach) are automatically split into `setup` and `teardown` sections.
 
+### Step attachments
+
+Use `test.info().attach()` inside a `test.step()` to attach structured content. UReport reads the `contentType` and renders a format toggle (JSON/XML, curl/text, etc.) in the Steps tab.
+
+```ts
+test("login API returns token", async ({ request }) => {
+  test.info().annotations.push({ type: "ureport-uid", description: "auth-login-api-001" });
+
+  const response = await request.post("/api/login", {
+    data: { username: "alice", password: "secret" },
+  });
+
+  await test.step("POST /api/login", async () => {
+    // JSON body — shows JSON/XML toggle in UReport
+    await test.info().attach("response-body", {
+      body: await response.text(),
+      contentType: "application/json",
+    });
+    expect(response.ok()).toBeTruthy();
+  });
+});
+```
+
+Other supported content types:
+
+```ts
+// curl command — shows curl/text toggle
+await test.info().attach("request-curl", {
+  body: `curl -X POST https://api.example.com/api/login -H 'Content-Type: application/json' -d '{"username":"alice"}'`,
+  contentType: "text/x-curl",
+});
+
+// XML — shows XML toggle
+await test.info().attach("soap-response", {
+  body: `<?xml version="1.0"?><root><status>OK</status></root>`,
+  contentType: "application/xml",
+});
+
+// Plain text
+await test.info().attach("server-log", {
+  body: "INFO: user alice logged in at 2024-01-15T10:30:00Z",
+  contentType: "text/plain",
+});
+```
+
+| `contentType`                    | UReport view formats |
+| -------------------------------- | -------------------- |
+| `application/json`               | JSON, XML            |
+| `application/xml` / `text/xml`   | XML                  |
+| `text/x-curl`                    | curl, text           |
+| `text/plain`                     | text                 |
+
+> Only the first content attachment per step is captured. Screenshots and content attachments are independent — a step can have both.
+
 ---
 
 ## How it works

@@ -31,11 +31,17 @@ export interface UReportBuildResponse {
   [key: string]: unknown;
 }
 
+export interface UReportStepAttachment {
+  screenshot?: string;       // base64 PNG/JPEG
+  content?: string;          // raw text (JSON string, XML string, curl command, etc.)
+  'content-type'?: string;   // comma-separated UReport format tokens: "json", "xml", "curl", "text"
+}
+
 export interface UReportStepPayload {
   timestamp: string;
   status: 'PASS' | 'FAIL';
   detail: string;
-  attachment?: string; // base64 encoded image
+  attachment?: UReportStepAttachment;
   steps?: UReportStepPayload[];
 }
 
