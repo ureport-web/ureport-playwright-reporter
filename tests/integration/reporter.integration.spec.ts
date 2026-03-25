@@ -460,6 +460,37 @@ describe('scenario: all optional parameters configured', () => {
     const t = getSubmittedTests(server).find((x) => x.name.includes('test with explicit steps'))!;
     expect((t.setup?.length ?? 0) + (t.teardown?.length ?? 0)).toBeGreaterThan(0);
   });
+
+  // ── Content attachments ────────────────────────────────────────────────────
+
+  test('test with content attachments is submitted', () => {
+    const attTest = getSubmittedTests(server).find(x => x.name === 'test with content attachments');
+    expect(attTest).toBeDefined();
+  });
+
+  test('JSON step has correct attachment content and content-type', () => {
+    const attTest = getSubmittedTests(server).find(x => x.name === 'test with content attachments');
+    const jsonStep = attTest!.body?.find((s: UReportStepPayload) => s.detail === 'JSON step');
+    expect(jsonStep?.attachment).toEqual({
+      content: '{"ok":true}',
+      'content-type': 'json,xml',
+    });
+  });
+
+  test('curl step has correct attachment content and content-type', () => {
+    const attTest = getSubmittedTests(server).find(x => x.name === 'test with content attachments');
+    const curlStep = attTest!.body?.find((s: UReportStepPayload) => s.detail === 'curl step');
+    expect(curlStep?.attachment).toEqual({
+      content: 'curl -X GET https://api.example.com/health',
+      'content-type': 'curl,text',
+    });
+  });
+
+  test('step without attach call has no attachment field', () => {
+    const plainTest = getSubmittedTests(server).find(x => x.name.includes('test with explicit steps'));
+    const plainStep = plainTest?.body?.find((s: UReportStepPayload) => s.detail === 'prepare data');
+    expect(plainStep?.attachment).toBeUndefined();
+  });
 });
 
 // =============================================================================
@@ -630,5 +661,88 @@ describe('scenario: retries', () => {
     for (const t of getSubmittedTests(server)) {
       expect(t.build).toBe('mock-build-id');
     }
+  });
+});
+
+// =============================================================================
+// Scenario 5 — Multi-project (chromium + firefox)
+// =============================================================================
+
+describe('scenario: multi-project (chromium + firefox)', () => {
+  let server: MockUReportServer;
+  let result: SubprocessResult;
+
+  beforeAll(async () => {
+    server = new MockUReportServer();
+    await server.start();
+    result = await runPlaywright(path.join(FIXTURES, 'multi-project.config.ts'), server.port);
+  }, 90_000);
+
+  afterAll(() => server.stop());
+
+  test('subprocess completes without timing out', () => {
+    if (result.exitCode === null) {
+      console.error('STDOUT:', result.stdout);
+      console.error('STDERR:', result.stderr);
+    }
+    expect(result.exitCode).not.toBeNull();
+  });
+
+  // ── Build creation ─────────────────────────────────────────────────────────
+
+  test('two builds are created — one per project', () => {
+    expect(server.requestsTo('/api/build')).toHaveLength(2);
+  });
+
+  test('one build has browser CHROMIUM', () => {
+    const browsers = server.requestsTo('/api/build')
+      .map((r) => (r.body as Record<string, unknown>).browser);
+    expect(browsers).toContain('CHROMIUM');
+  });
+
+  test('one build has browser FIREFOX', () => {
+    const browsers = server.requestsTo('/api/build')
+      .map((r) => (r.body as Record<string, unknown>).browser);
+    expect(browsers).toContain('FIREFOX');
+  });
+
+  // ── Test submission ────────────────────────────────────────────────────────
+
+  test('two /api/test/multi calls — one per project build', () => {
+    expect(server.requestsTo('/api/test/multi')).toHaveLength(2);
+  });
+
+  test('each project submits exactly 1 test', () => {
+    for (const req of server.requestsTo('/api/test/multi')) {
+      const batch = req.body as { tests: UReportTestPayload[] };
+      expect(batch.tests).toHaveLength(1);
+    }
+  });
+
+  test('both submitted tests share the same name (same spec ran in each browser)', () => {
+    const allTests = getSubmittedTests(server);
+    expect(allTests).toHaveLength(2);
+    expect(allTests[0].name).toBe('cross-browser test');
+    expect(allTests[1].name).toBe('cross-browser test');
+  });
+
+  // ── Finalization ───────────────────────────────────────────────────────────
+
+  test('two finalize calls — one per build', () => {
+    const finalizePaths = server.requests
+      .map((r) => r.path)
+      .filter((p) => p.startsWith('/api/build/status/calculate/'));
+    expect(finalizePaths).toHaveLength(2);
+  });
+
+  // ── Relations ──────────────────────────────────────────────────────────────
+
+  test('only one test_relation is saved — uid is deduped across both builds', () => {
+    expect(server.requestsTo('/api/test_relation')).toHaveLength(1);
+  });
+
+  test('the saved relation uid matches the test name', () => {
+    const rel = server.firstRequestTo('/api/test_relation')?.body as Record<string, unknown>;
+    expect(rel.uid).toBe('cross-browser test');
   });
 });

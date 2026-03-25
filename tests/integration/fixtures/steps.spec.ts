@@ -34,3 +34,19 @@ test('test with a failing step', async () => {
     expect(1).toBe(999);
   }).catch(() => {});  // swallow so the test body can continue reporting
 });
+
+test('test with content attachments', async () => {
+  await test.step('JSON step', async () => {
+    await test.info().attach('response-body', {
+      body: '{"ok":true}',
+      contentType: 'application/json',
+    });
+  });
+
+  await test.step('curl step', async () => {
+    await test.info().attach('request-curl', {
+      body: `curl -X GET https://api.example.com/health`,
+      contentType: 'text/x-curl',
+    });
+  });
+});

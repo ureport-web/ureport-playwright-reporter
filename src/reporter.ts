@@ -14,13 +14,18 @@ import { UReportApiClient } from './api-client.js';
 import { mapTestToPayload, mapTestToRelationPayload, detectBrowser, detectDevice, detectEnvironments, detectSettings, detectPlatformVersion } from './mapper.js';
 import type { UReportBuildPayload, UReportTestPayload, UReportTestRelationPayload } from './types.js';
 
+interface BuildRecord {
+  project: FullProject;
+  buildId: string;
+  payload: UReportBuildPayload;
+  tests: UReportTestPayload[];
+}
+
 export class UReportReporter implements Reporter {
   private options!: UReportReporterOptions;
   private client!: UReportApiClient;
-  private buildId = '';
-  private buildPayload!: UReportBuildPayload;
   private rootDir = '';
-  private collectedTests: UReportTestPayload[] = [];
+  private builds: BuildRecord[] = [];
   private collectedRelations: UReportTestRelationPayload[] = [];
   private stepsByTestRetry = new Map<string, TestStep[]>();
 
@@ -31,20 +36,6 @@ export class UReportReporter implements Reporter {
     this.client = new UReportApiClient(this.options.serverUrl, this.options.apiToken);
 
     this.rootDir = process.cwd();
-
-    if (!this.options.browser) {
-      const firstProject = config.projects[0];
-      if (firstProject) {
-        this.options.browser = detectBrowser(firstProject);
-      }
-    }
-
-    if (!this.options.device) {
-      const firstProject = config.projects[0];
-      if (firstProject) {
-        this.options.device = detectDevice(firstProject);
-      }
-    }
 
     if (this.options.autoDetectPlatform !== false) {
       if (!this.options.platform) this.options.platform = process.platform;
@@ -66,32 +57,50 @@ export class UReportReporter implements Reporter {
       ? rawBuild
       : (parseInt(String(rawBuild), 10) || Date.now());
 
-    this.buildPayload = {
-      product: this.options.product,
-      type: this.options.type,
-      build: buildNumber,
-      team: this.options.team,
-      browser: this.options.browser,
-      device: this.options.device,
-      platform: this.options.platform,
-      platform_version: this.options.platform_version,
-      stage: this.options.stage,
-      version: this.options.version,
-      start_time: new Date().toISOString(),
-      environments: this.options.environments,
-      settings: this.options.settings,
-    };
+    // Collect the projects that are actually running. suite.suites are project-level
+    // suites — only populated for projects that have matched tests, unlike
+    // config.projects which lists every configured project regardless of --project filter.
+    const runningProjects: FullProject[] = suite.suites
+      .map((s) => s.project())
+      .filter((p): p is FullProject => p != null);
 
-    const build = await this.client.createBuild(this.buildPayload);
-    this.buildId = build._id;
+    // Fallback: if suite isn't populated yet (edge case), use config.projects
+    const projectsToCreate = runningProjects.length > 0
+      ? runningProjects
+      : config.projects.slice(0, 1);
+
+    for (const project of projectsToCreate) {
+      const browser = this.options.browser ?? detectBrowser(project);
+      const device  = this.options.device  ?? detectDevice(project);
+
+      const payload: UReportBuildPayload = {
+        product:           this.options.product,
+        type:              this.options.type,
+        build:             buildNumber,
+        team:              this.options.team,
+        browser,
+        device,
+        platform:          this.options.platform,
+        platform_version:  this.options.platform_version,
+        stage:             this.options.stage,
+        version:           this.options.version,
+        start_time:        new Date().toISOString(),
+        environments:      this.options.environments,
+        settings:          this.options.settings,
+      };
+
+      const build = await this.client.createBuild(payload);
+      this.builds.push({ project, buildId: build._id, payload, tests: [] });
+    }
   }
 
   onTestEnd(test: TestCase, result: TestResult): void {
     const key = test.id + ':' + result.retry;
     const steps = this.stepsByTestRetry.get(key) ?? [];
 
-    const payload = mapTestToPayload(test, result, this.buildId, steps, this.options, this.rootDir);
-    this.collectedTests.push(payload);
+    const buildRecord = this.getBuildForTest(test);
+    const payload = mapTestToPayload(test, result, buildRecord.buildId, steps, this.options, this.rootDir);
+    buildRecord.tests.push(payload);
 
     this.stepsByTestRetry.delete(key);
   }
@@ -106,16 +115,25 @@ export class UReportReporter implements Reporter {
   async onEnd(_result: FullResult): Promise<void> {
     const { batchSize = 50 } = this.options;
 
-    for (let i = 0; i < this.collectedTests.length; i += batchSize) {
-      const batch = this.collectedTests.slice(i, i + batchSize);
-      await this.client.submitTests(batch);
+    for (const record of this.builds) {
+      for (let i = 0; i < record.tests.length; i += batchSize) {
+        await this.client.submitTests(record.tests.slice(i, i + batchSize));
+      }
+
+      await this.client.finalizeBuild(record.buildId);
+
+      const pass = record.tests.filter((t) => t.status === 'PASS' || t.status === 'RERUN_PASS').length;
+      const fail = record.tests.filter((t) => t.status === 'FAIL').length;
+      const skip = record.tests.filter((t) => t.status === 'SKIP').length;
+      console.log(
+        `[ureport-reporter] Build ${record.buildId} (${record.project.name}) finalized — PASS: ${pass}, FAIL: ${fail}, SKIP: ${skip}`
+      );
     }
 
-    await this.client.finalizeBuild(this.buildId);
-
     if (this.options.saveRelations !== false) {
+      const allTests = this.builds.flatMap((b) => b.tests);
       const seen = new Set<string>();
-      for (const test of this.collectedTests) {
+      for (const test of allTests) {
         if (seen.has(test.uid)) continue;
         seen.add(test.uid);
         const relation = mapTestToRelationPayload(test, this.options);
@@ -124,25 +142,24 @@ export class UReportReporter implements Reporter {
       }
     }
 
-    const pass = this.collectedTests.filter((t) => t.status === 'PASS' || t.status === 'RERUN_PASS').length;
-    const fail = this.collectedTests.filter((t) => t.status === 'FAIL').length;
-    const skip = this.collectedTests.filter((t) => t.status === 'SKIP').length;
-
-    console.log(
-      `[ureport-reporter] Build ${this.buildId} finalized — PASS: ${pass}, FAIL: ${fail}, SKIP: ${skip}`
-    );
-
     if (this.options.outputFile) {
       const { writeFile } = await import('fs/promises');
-      const output = JSON.stringify(
-        {
-          build: this.buildPayload,
-          tests: this.collectedTests,
-          relations: this.collectedRelations,
-        },
-        null,
-        2
-      );
+      const output = this.builds.length === 1
+        ? JSON.stringify(
+            {
+              build:     this.builds[0].payload,
+              tests:     this.builds[0].tests,
+              relations: this.collectedRelations,
+            },
+            null, 2
+          )
+        : JSON.stringify(
+            {
+              builds:    this.builds.map((b) => ({ project: b.project.name, build: b.payload, tests: b.tests })),
+              relations: this.collectedRelations,
+            },
+            null, 2
+          );
       await writeFile(this.options.outputFile, output, 'utf-8');
       console.log(`[ureport-reporter] Payload saved to ${this.options.outputFile}`);
     }
@@ -150,5 +167,18 @@ export class UReportReporter implements Reporter {
 
   printsToStdio(): boolean {
     return false;
+  }
+
+  private getBuildForTest(test: TestCase): BuildRecord {
+    let suite: Suite | undefined = test.parent;
+    while (suite) {
+      const project = suite.project();
+      if (project) {
+        const record = this.builds.find((b) => b.project.name === project.name);
+        if (record) return record;
+      }
+      suite = suite.parent;
+    }
+    return this.builds[0]!;
   }
 }
