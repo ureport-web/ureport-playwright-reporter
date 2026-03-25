@@ -159,11 +159,20 @@ function readToText(att: { path?: string; body?: Buffer }): string | undefined {
 function mapStep(step: TestStep, includeScreenshots: boolean): UReportStepPayload {
   let attachment: UReportStepAttachment | undefined;
 
-  if (step.attachments?.length) {
-    const imageAtt = step.attachments.find(
+  // Playwright stores attachments on the internal test.attach child step rather
+  // than on the parent test.step — collect from both to cover either placement.
+  const allAttachments = [
+    ...(step.attachments ?? []),
+    ...(step.steps ?? [])
+      .filter(s => s.category === 'test.attach')
+      .flatMap(s => s.attachments ?? []),
+  ];
+
+  if (allAttachments.length) {
+    const imageAtt = allAttachments.find(
       (a) => a.contentType === 'image/png' || a.contentType === 'image/jpeg'
     );
-    const contentAtt = step.attachments.find(
+    const contentAtt = allAttachments.find(
       (a) => CONTENT_TYPE_MAP[a.contentType]
     );
 
