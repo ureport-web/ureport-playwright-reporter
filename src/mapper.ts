@@ -1,17 +1,29 @@
-import { readFileSync } from 'fs';
-import { release } from 'os';
-import { basename, dirname, relative } from 'path';
-import type { TestCase, TestResult, TestStep, FullProject, FullConfig } from '@playwright/test/reporter';
-import type { UReportStepAttachment, UReportStepPayload, UReportTestPayload, UReportTestRelationPayload, UReportTestInfo, UReportStatus } from './types.js';
-import type { UReportReporterOptions } from './config.js';
-
+import { readFileSync } from "fs";
+import { release } from "os";
+import { basename, dirname, relative } from "path";
+import type {
+  TestCase,
+  TestResult,
+  TestStep,
+  FullProject,
+  FullConfig,
+} from "@playwright/test/reporter";
+import type {
+  UReportStepAttachment,
+  UReportStepPayload,
+  UReportTestPayload,
+  UReportTestRelationPayload,
+  UReportTestInfo,
+  UReportStatus,
+} from "./types.js";
+import type { UReportReporterOptions } from "./config.js";
 
 function detectOsFromUserAgent(userAgent: string): string {
-  if (/\(X11; CrOS/i.test(userAgent)) return 'ChromeOS';
-  if (/Windows NT/i.test(userAgent)) return 'Windows';
-  if (/Macintosh/i.test(userAgent)) return 'macOS';
-  if (/X11.*Linux/i.test(userAgent)) return 'Linux';
-  return 'Unknown';
+  if (/\(X11; CrOS/i.test(userAgent)) return "ChromeOS";
+  if (/Windows NT/i.test(userAgent)) return "Windows";
+  if (/Macintosh/i.test(userAgent)) return "macOS";
+  if (/X11.*Linux/i.test(userAgent)) return "Linux";
+  return "Unknown";
 }
 
 export function detectDevice(project: FullProject): string | undefined {
@@ -22,14 +34,16 @@ export function detectDevice(project: FullProject): string | undefined {
   if (isMobile) {
     let model: string | undefined;
     if (userAgent) {
-      if (/\(iPhone[;)]/i.test(userAgent)) model = 'iPhone';
-      else if (/\(iPad[;)]/i.test(userAgent)) model = 'iPad';
+      if (/\(iPhone[;)]/i.test(userAgent)) model = "iPhone";
+      else if (/\(iPad[;)]/i.test(userAgent)) model = "iPad";
       else {
-        const androidMatch = userAgent.match(/\(Linux; Android [^;]+; ([^)]+)\)/);
+        const androidMatch = userAgent.match(
+          /\(Linux; Android [^;]+; ([^)]+)\)/,
+        );
         if (androidMatch) model = androidMatch[1].trim();
       }
     }
-    return model ? `MOBILE-${model.toUpperCase()}` : 'MOBILE';
+    return model ? `MOBILE-${model.toUpperCase()}` : "MOBILE";
   }
 
   if (isMobile === false && userAgent) {
@@ -40,14 +54,17 @@ export function detectDevice(project: FullProject): string | undefined {
 }
 
 export function detectBrowser(project: FullProject): string | undefined {
-  const channel = (project.use as Record<string, unknown>).channel as string | undefined;
+  const channel = (project.use as Record<string, unknown>).channel as
+    | string
+    | undefined;
   if (channel) {
-    if (channel.startsWith('msedge')) return 'EDGE';
-    if (channel.startsWith('chrome')) return 'CHROME';
+    if (channel.startsWith("msedge")) return "EDGE";
+    if (channel.startsWith("chrome")) return "CHROME";
     return channel.toUpperCase();
   }
-  const browserName = project.use.browserName || project.use.defaultBrowserType || 'chromium';
-  if (browserName === 'webkit') return 'SAFARI';
+  const browserName =
+    project.use.browserName || project.use.defaultBrowserType || "chromium";
+  if (browserName === "webkit") return "SAFARI";
   return browserName.toUpperCase();
 }
 
@@ -73,21 +90,21 @@ export function formatDuration(ms: number): string {
 }
 
 export function mapStatus(
-  playwrightStatus: TestResult['status'],
-  isRerun: boolean
+  playwrightStatus: TestResult["status"],
+  isRerun: boolean,
 ): UReportStatus {
   switch (playwrightStatus) {
-    case 'passed':
-      return isRerun ? 'RERUN_PASS' : 'PASS';
+    case "passed":
+      return isRerun ? "RERUN_PASS" : "PASS";
     // UReport has no RERUN_FAIL / RERUN_SKIP — retried failures use the same
     // FAIL/SKIP status; is_rerun: true on the payload carries the retry signal.
-    case 'failed':
-    case 'timedOut':
+    case "failed":
+    case "timedOut":
     default:
-      return 'FAIL';
-    case 'skipped':
-    case 'interrupted':
-      return 'SKIP';
+      return "FAIL";
+    case "skipped":
+    case "interrupted":
+      return "SKIP";
   }
 }
 
@@ -109,7 +126,7 @@ export function extractTags(testCase: TestCase): string[] {
 
 export function generateUid(testCase: TestCase): string {
   const ureportAnnotation = testCase.annotations.find(
-    (a) => a.type === 'ureport-uid'
+    (a) => a.type === "ureport-uid",
   );
   if (ureportAnnotation?.description) {
     return ureportAnnotation.description;
@@ -118,28 +135,36 @@ export function generateUid(testCase: TestCase): string {
 }
 
 // Internal categories Playwright creates as implementation details — not user steps
-const INTERNAL_STEP_CATEGORIES = new Set(['test.attach']);
+const INTERNAL_STEP_CATEGORIES = new Set(["test.attach"]);
 
-type ResultAttachment = { name: string; contentType: string; path?: string; body?: Buffer };
-
-const CONTENT_TYPE_MAP: Record<string, string> = {
-  'application/json': 'json,xml',
-  'application/xml':  'xml',
-  'text/xml':         'xml',
-  'text/x-curl':      'curl,text',
-  'text/plain':       'text',
+type ResultAttachment = {
+  name: string;
+  contentType: string;
+  path?: string;
+  body?: Buffer;
 };
 
-function readToBase64(att: { path?: string; body?: Buffer }): string | undefined {
+const CONTENT_TYPE_MAP: Record<string, string> = {
+  "application/json": "json",
+  "application/xml": "xml",
+  "text/xml": "xml",
+  "text/x-curl": "curl",
+  "text/plain": "text",
+};
+
+function readToBase64(att: {
+  path?: string;
+  body?: Buffer;
+}): string | undefined {
   if (att.path) {
     try {
-      return readFileSync(att.path).toString('base64');
+      return readFileSync(att.path).toString("base64");
     } catch {
       return undefined;
     }
   }
   if (att.body) {
-    return att.body.toString('base64');
+    return att.body.toString("base64");
   }
   return undefined;
 }
@@ -147,13 +172,13 @@ function readToBase64(att: { path?: string; body?: Buffer }): string | undefined
 function readToText(att: { path?: string; body?: Buffer }): string | undefined {
   if (att.path) {
     try {
-      return readFileSync(att.path, 'utf8');
+      return readFileSync(att.path, "utf8");
     } catch {
       return undefined;
     }
   }
   if (att.body) {
-    return att.body.toString('utf8');
+    return att.body.toString("utf8");
   }
   return undefined;
 }
@@ -161,7 +186,7 @@ function readToText(att: { path?: string; body?: Buffer }): string | undefined {
 function mapStep(
   step: TestStep,
   includeScreenshots: boolean,
-  resultAttachments: ResultAttachment[]
+  resultAttachments: ResultAttachment[],
 ): UReportStepPayload {
   let attachment: UReportStepAttachment | undefined;
 
@@ -169,51 +194,50 @@ function mapStep(
   // result.attachments (which are always populated in all Playwright versions).
   const attachFromStep = (s: TestStep): ResultAttachment[] => {
     if (s.attachments?.length) return s.attachments as ResultAttachment[];
-    const nameMatch = s.title.match(/^attach\s+"(.+)"$/) ?? s.title.match(/^attach\s+'(.+)'$/);
-    if (nameMatch) return resultAttachments.filter(a => a.name === nameMatch[1]);
+    const nameMatch =
+      s.title.match(/^attach\s+"(.+)"$/) ?? s.title.match(/^attach\s+'(.+)'$/);
+    if (nameMatch)
+      return resultAttachments.filter((a) => a.name === nameMatch[1]);
     return [];
   };
 
   const allAttachments: ResultAttachment[] = [
-    ...(step.attachments ?? []) as ResultAttachment[],
+    ...((step.attachments ?? []) as ResultAttachment[]),
     ...(step.steps ?? [])
-      .filter(s => s.category === 'test.attach')
+      .filter((s) => s.category === "test.attach")
       .flatMap(attachFromStep),
   ];
 
   if (allAttachments.length) {
     const imageAtt = allAttachments.find(
-      (a) => a.contentType === 'image/png' || a.contentType === 'image/jpeg'
+      (a) => a.contentType === "image/png" || a.contentType === "image/jpeg",
     );
     const contentAtt = allAttachments.find(
-      (a) => CONTENT_TYPE_MAP[a.contentType]
+      (a) => CONTENT_TYPE_MAP[a.contentType],
     );
 
-    const screenshotB64 = includeScreenshots && imageAtt
-      ? readToBase64(imageAtt)
-      : undefined;
+    const screenshotB64 =
+      includeScreenshots && imageAtt ? readToBase64(imageAtt) : undefined;
 
-    const contentStr = contentAtt
-      ? readToText(contentAtt)
-      : undefined;
+    const contentStr = contentAtt ? readToText(contentAtt) : undefined;
 
     if (screenshotB64 || contentStr) {
       attachment = {};
       if (screenshotB64) attachment.screenshot = screenshotB64;
       if (contentStr) {
         attachment.content = contentStr;
-        attachment['content-type'] = CONTENT_TYPE_MAP[contentAtt!.contentType];
+        attachment["content-type"] = CONTENT_TYPE_MAP[contentAtt!.contentType];
       }
     }
   }
 
   const childSteps = (step.steps ?? [])
-    .filter(s => !INTERNAL_STEP_CATEGORIES.has(s.category))
-    .map(s => mapStep(s, includeScreenshots, resultAttachments));
+    .filter((s) => !INTERNAL_STEP_CATEGORIES.has(s.category))
+    .map((s) => mapStep(s, includeScreenshots, resultAttachments));
 
   return {
     timestamp: step.startTime.toISOString(),
-    status: step.error ? 'FAIL' : 'PASS',
+    status: step.error ? "FAIL" : "PASS",
     detail: step.title,
     ...(attachment !== undefined ? { attachment } : {}),
     ...(childSteps.length > 0 ? { steps: childSteps } : {}),
@@ -221,7 +245,7 @@ function mapStep(
 }
 
 function isHookStep(step: TestStep): boolean {
-  return step.category === 'hook';
+  return step.category === "hook";
 }
 
 function isSetupHook(step: TestStep): boolean {
@@ -244,8 +268,12 @@ function getAllDescendants(step: TestStep): Set<TestStep> {
 export function categorizeSteps(
   steps: TestStep[],
   includeScreenshots: boolean,
-  resultAttachments: ResultAttachment[] = []
-): { setup: UReportStepPayload[]; body: UReportStepPayload[]; teardown: UReportStepPayload[] } {
+  resultAttachments: ResultAttachment[] = [],
+): {
+  setup: UReportStepPayload[];
+  body: UReportStepPayload[];
+  teardown: UReportStepPayload[];
+} {
   const setup: UReportStepPayload[] = [];
   const body: UReportStepPayload[] = [];
   const teardown: UReportStepPayload[] = [];
@@ -255,7 +283,7 @@ export function categorizeSteps(
   for (const step of steps) {
     for (const d of getAllDescendants(step)) descendants.add(d);
   }
-  const topLevel = steps.filter(s => !descendants.has(s));
+  const topLevel = steps.filter((s) => !descendants.has(s));
 
   for (const step of topLevel) {
     const mapped = mapStep(step, includeScreenshots, resultAttachments);
@@ -279,28 +307,37 @@ export function mapTestToPayload(
   buildId: string,
   steps: TestStep[],
   options: UReportReporterOptions,
-  rootDir: string
+  rootDir: string,
 ): UReportTestPayload {
   const isRerun = result.retry > 0;
   const startTime = result.startTime;
   const endTime = new Date(startTime.getTime() + result.duration);
 
-  const info: UReportTestPayload['info'] = {
+  const info: UReportTestPayload["info"] = {
     file: basename(testCase.location.file),
     path: relative(rootDir, dirname(testCase.location.file)),
     tags: extractTags(testCase),
     duration: formatDuration(result.duration),
   };
 
-  const ARRAY_ANNOTATION_TYPES = new Set(['components', 'teams']);
+  const ARRAY_ANNOTATION_TYPES = new Set(["components", "teams"]);
   const quickInfoSet = new Set(options.quickInfoAnnotations ?? []);
 
   for (const annotation of testCase.annotations) {
-    if (annotation.type === 'ureport-uid' || annotation.description === undefined) continue;
+    if (
+      annotation.type === "ureport-uid" ||
+      annotation.description === undefined
+    )
+      continue;
 
     if (quickInfoSet.has(annotation.type)) {
-      const existing = (info.quickInfo as Array<{ key: string; value: string }> | undefined) ?? [];
-      info.quickInfo = [...existing, { key: annotation.type, value: annotation.description }];
+      const existing =
+        (info.quickInfo as Array<{ key: string; value: string }> | undefined) ??
+        [];
+      info.quickInfo = [
+        ...existing,
+        { key: annotation.type, value: annotation.description },
+      ];
     } else if (ARRAY_ANNOTATION_TYPES.has(annotation.type)) {
       const existing = (info[annotation.type] as string[] | undefined) ?? [];
       info[annotation.type] = [...existing, annotation.description];
@@ -321,7 +358,10 @@ export function mapTestToPayload(
   };
 
   const firstError = result.errors[0];
-  if (firstError && (result.status === 'failed' || result.status === 'timedOut')) {
+  if (
+    firstError &&
+    (result.status === "failed" || result.status === "timedOut")
+  ) {
     payload.failure = {
       error_message: firstError.message ?? String(firstError),
       stack_trace: firstError.stack,
@@ -332,7 +372,7 @@ export function mapTestToPayload(
     const { setup, body, teardown } = categorizeSteps(
       steps,
       options.includeScreenshots ?? true,
-      result.attachments as ResultAttachment[]
+      result.attachments as ResultAttachment[],
     );
     if (setup.length > 0) payload.setup = setup;
     if (body.length > 0) payload.body = body;
@@ -342,14 +382,20 @@ export function mapTestToPayload(
   return payload;
 }
 
-export function detectEnvironments(config: FullConfig): Record<string, unknown> | undefined {
+export function detectEnvironments(
+  config: FullConfig,
+): Record<string, unknown> | undefined {
   const firstProject = config.projects[0];
-  const baseURL = (firstProject?.use as Record<string, unknown>)?.baseURL as string | undefined;
+  const baseURL = (firstProject?.use as Record<string, unknown>)?.baseURL as
+    | string
+    | undefined;
   if (!baseURL) return undefined;
   return { baseURL };
 }
 
-export function detectSettings(config: FullConfig): Record<string, unknown> | undefined {
+export function detectSettings(
+  config: FullConfig,
+): Record<string, unknown> | undefined {
   const s: Record<string, unknown> = {};
   const firstProject = config.projects[0];
   const timeout = firstProject?.timeout;
@@ -361,11 +407,19 @@ export function detectSettings(config: FullConfig): Record<string, unknown> | un
 }
 
 // Keys on info that map to dedicated relation fields — not put into customs.
-const RELATION_INFO_KEYS = new Set(['file', 'path', 'tags', 'components', 'teams', 'duration', 'quickInfo']);
+const RELATION_INFO_KEYS = new Set([
+  "file",
+  "path",
+  "tags",
+  "components",
+  "teams",
+  "duration",
+  "quickInfo",
+]);
 
 export function mapTestToRelationPayload(
   test: UReportTestPayload,
-  options: UReportReporterOptions
+  options: UReportReporterOptions,
 ): UReportTestRelationPayload {
   const relation: UReportTestRelationPayload = {
     uid: test.uid,
@@ -377,9 +431,12 @@ export function mapTestToRelationPayload(
 
   if (info.file) relation.file = info.file as string;
   if (info.path !== undefined) relation.path = info.path as string;
-  if ((info.tags as string[] | undefined)?.length) relation.tags = info.tags as string[];
-  if ((info.components as string[] | undefined)?.length) relation.components = info.components as string[];
-  if ((info.teams as string[] | undefined)?.length) relation.teams = info.teams as string[];
+  if ((info.tags as string[] | undefined)?.length)
+    relation.tags = info.tags as string[];
+  if ((info.components as string[] | undefined)?.length)
+    relation.components = info.components as string[];
+  if ((info.teams as string[] | undefined)?.length)
+    relation.teams = info.teams as string[];
 
   const customs: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(info)) {
