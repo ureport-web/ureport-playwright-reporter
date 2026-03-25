@@ -120,6 +120,8 @@ export function generateUid(testCase: TestCase): string {
 // Internal categories Playwright creates as implementation details — not user steps
 const INTERNAL_STEP_CATEGORIES = new Set(['test.attach']);
 
+type ResultAttachment = { name: string; contentType: string; path?: string; body?: Buffer };
+
 const CONTENT_TYPE_MAP: Record<string, string> = {
   'application/json': 'json,xml',
   'application/xml':  'xml',
@@ -156,16 +158,27 @@ function readToText(att: { path?: string; body?: Buffer }): string | undefined {
   return undefined;
 }
 
-function mapStep(step: TestStep, includeScreenshots: boolean): UReportStepPayload {
+function mapStep(
+  step: TestStep,
+  includeScreenshots: boolean,
+  resultAttachments: ResultAttachment[]
+): UReportStepPayload {
   let attachment: UReportStepAttachment | undefined;
 
-  // Playwright stores attachments on the internal test.attach child step rather
-  // than on the parent test.step — collect from both to cover either placement.
-  const allAttachments = [
-    ...(step.attachments ?? []),
+  // For test.attach child steps, try step.attachments first, then fall back to
+  // result.attachments (which are always populated in all Playwright versions).
+  const attachFromStep = (s: TestStep): ResultAttachment[] => {
+    if (s.attachments?.length) return s.attachments as ResultAttachment[];
+    const nameMatch = s.title.match(/^attach\s+"(.+)"$/) ?? s.title.match(/^attach\s+'(.+)'$/);
+    if (nameMatch) return resultAttachments.filter(a => a.name === nameMatch[1]);
+    return [];
+  };
+
+  const allAttachments: ResultAttachment[] = [
+    ...(step.attachments ?? []) as ResultAttachment[],
     ...(step.steps ?? [])
       .filter(s => s.category === 'test.attach')
-      .flatMap(s => s.attachments ?? []),
+      .flatMap(attachFromStep),
   ];
 
   if (allAttachments.length) {
@@ -196,7 +209,7 @@ function mapStep(step: TestStep, includeScreenshots: boolean): UReportStepPayloa
 
   const childSteps = (step.steps ?? [])
     .filter(s => !INTERNAL_STEP_CATEGORIES.has(s.category))
-    .map(s => mapStep(s, includeScreenshots));
+    .map(s => mapStep(s, includeScreenshots, resultAttachments));
 
   return {
     timestamp: step.startTime.toISOString(),
@@ -230,7 +243,8 @@ function getAllDescendants(step: TestStep): Set<TestStep> {
 
 export function categorizeSteps(
   steps: TestStep[],
-  includeScreenshots: boolean
+  includeScreenshots: boolean,
+  resultAttachments: ResultAttachment[] = []
 ): { setup: UReportStepPayload[]; body: UReportStepPayload[]; teardown: UReportStepPayload[] } {
   const setup: UReportStepPayload[] = [];
   const body: UReportStepPayload[] = [];
@@ -244,7 +258,7 @@ export function categorizeSteps(
   const topLevel = steps.filter(s => !descendants.has(s));
 
   for (const step of topLevel) {
-    const mapped = mapStep(step, includeScreenshots);
+    const mapped = mapStep(step, includeScreenshots, resultAttachments);
     if (isHookStep(step)) {
       if (isTeardownHook(step)) {
         teardown.push(mapped);
@@ -317,7 +331,8 @@ export function mapTestToPayload(
   if (options.includeSteps) {
     const { setup, body, teardown } = categorizeSteps(
       steps,
-      options.includeScreenshots ?? true
+      options.includeScreenshots ?? true,
+      result.attachments as ResultAttachment[]
     );
     if (setup.length > 0) payload.setup = setup;
     if (body.length > 0) payload.body = body;

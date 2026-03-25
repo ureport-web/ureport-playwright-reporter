@@ -14,27 +14,27 @@ import { UReportApiClient } from './api-client.js';
 import { mapTestToPayload, mapTestToRelationPayload, detectBrowser, detectDevice, detectEnvironments, detectSettings, detectPlatformVersion } from './mapper.js';
 import type { UReportBuildPayload, UReportTestPayload, UReportTestRelationPayload } from './types.js';
 
-interface BuildRecord {
-  project: FullProject;
-  buildId: string;
-  payload: UReportBuildPayload;
-  tests: UReportTestPayload[];
+interface PendingTest {
+  test: TestCase;
+  result: TestResult;
+  steps: TestStep[];
+  project: FullProject | undefined;
 }
 
 export class UReportReporter implements Reporter {
   private options!: UReportReporterOptions;
   private client!: UReportApiClient;
   private rootDir = '';
-  private builds: BuildRecord[] = [];
+  private pendingTests: PendingTest[] = [];
   private collectedRelations: UReportTestRelationPayload[] = [];
   private stepsByTestRetry = new Map<string, TestStep[]>();
+  private commonBuildFields!: Omit<UReportBuildPayload, 'browser' | 'device' | 'start_time'>;
 
   constructor(private readonly rawOptions: Partial<UReportReporterOptions> = {}) {}
 
-  async onBegin(config: FullConfig, suite: Suite): Promise<void> {
+  async onBegin(config: FullConfig, _suite: Suite): Promise<void> {
     this.options = validateOptions(this.rawOptions);
     this.client = new UReportApiClient(this.options.serverUrl, this.options.apiToken);
-
     this.rootDir = process.cwd();
 
     if (this.options.autoDetectPlatform !== false) {
@@ -57,51 +57,24 @@ export class UReportReporter implements Reporter {
       ? rawBuild
       : (parseInt(String(rawBuild), 10) || Date.now());
 
-    // Collect the projects that are actually running. suite.suites are project-level
-    // suites — only populated for projects that have matched tests, unlike
-    // config.projects which lists every configured project regardless of --project filter.
-    const runningProjects: FullProject[] = suite.suites
-      .map((s) => s.project())
-      .filter((p): p is FullProject => p != null);
-
-    // Fallback: if suite isn't populated yet (edge case), use config.projects
-    const projectsToCreate = runningProjects.length > 0
-      ? runningProjects
-      : config.projects.slice(0, 1);
-
-    for (const project of projectsToCreate) {
-      const browser = this.options.browser ?? detectBrowser(project);
-      const device  = this.options.device  ?? detectDevice(project);
-
-      const payload: UReportBuildPayload = {
-        product:           this.options.product,
-        type:              this.options.type,
-        build:             buildNumber,
-        team:              this.options.team,
-        browser,
-        device,
-        platform:          this.options.platform,
-        platform_version:  this.options.platform_version,
-        stage:             this.options.stage,
-        version:           this.options.version,
-        start_time:        new Date().toISOString(),
-        environments:      this.options.environments,
-        settings:          this.options.settings,
-      };
-
-      const build = await this.client.createBuild(payload);
-      this.builds.push({ project, buildId: build._id, payload, tests: [] });
-    }
+    this.commonBuildFields = {
+      product:          this.options.product,
+      type:             this.options.type,
+      build:            buildNumber,
+      team:             this.options.team,
+      platform:         this.options.platform,
+      platform_version: this.options.platform_version,
+      stage:            this.options.stage,
+      version:          this.options.version,
+      environments:     this.options.environments,
+      settings:         this.options.settings,
+    };
   }
 
   onTestEnd(test: TestCase, result: TestResult): void {
     const key = test.id + ':' + result.retry;
     const steps = this.stepsByTestRetry.get(key) ?? [];
-
-    const buildRecord = this.getBuildForTest(test);
-    const payload = mapTestToPayload(test, result, buildRecord.buildId, steps, this.options, this.rootDir);
-    buildRecord.tests.push(payload);
-
+    this.pendingTests.push({ test, result, steps, project: this.getProjectForTest(test) });
     this.stepsByTestRetry.delete(key);
   }
 
@@ -115,28 +88,56 @@ export class UReportReporter implements Reporter {
   async onEnd(_result: FullResult): Promise<void> {
     const { batchSize = 50 } = this.options;
 
-    for (const record of this.builds) {
-      for (let i = 0; i < record.tests.length; i += batchSize) {
-        await this.client.submitTests(record.tests.slice(i, i + batchSize));
+    // Group pending tests by project name
+    const byProject = new Map<string, { project: FullProject | undefined; pending: PendingTest[] }>();
+    for (const p of this.pendingTests) {
+      const key = p.project?.name ?? '__default__';
+      if (!byProject.has(key)) byProject.set(key, { project: p.project, pending: [] });
+      byProject.get(key)!.pending.push(p);
+    }
+
+    interface BuildRecord { project: FullProject | undefined; payload: UReportBuildPayload; tests: UReportTestPayload[] }
+    const allMappedTests: UReportTestPayload[] = [];
+    const buildRecords: BuildRecord[] = [];
+
+    for (const [, { project, pending }] of byProject) {
+      const browser = this.options.browser ?? (project ? detectBrowser(project) : undefined);
+      const device  = this.options.device  ?? (project ? detectDevice(project)  : undefined);
+      const payload: UReportBuildPayload = {
+        ...this.commonBuildFields,
+        browser,
+        device,
+        start_time: new Date().toISOString(),
+      };
+
+      const build = await this.client.createBuild(payload);
+
+      const mapped = pending.map(({ test, result, steps }) =>
+        mapTestToPayload(test, result, build._id, steps, this.options, this.rootDir)
+      );
+      allMappedTests.push(...mapped);
+      buildRecords.push({ project, payload, tests: mapped });
+
+      for (let i = 0; i < mapped.length; i += batchSize) {
+        await this.client.submitTests(mapped.slice(i, i + batchSize));
       }
 
-      await this.client.finalizeBuild(record.buildId);
+      await this.client.finalizeBuild(build._id);
 
-      const pass = record.tests.filter((t) => t.status === 'PASS' || t.status === 'RERUN_PASS').length;
-      const fail = record.tests.filter((t) => t.status === 'FAIL').length;
-      const skip = record.tests.filter((t) => t.status === 'SKIP').length;
+      const pass = mapped.filter(t => t.status === 'PASS' || t.status === 'RERUN_PASS').length;
+      const fail = mapped.filter(t => t.status === 'FAIL').length;
+      const skip = mapped.filter(t => t.status === 'SKIP').length;
       console.log(
-        `[ureport-reporter] Build ${record.buildId} (${record.project.name}) finalized — PASS: ${pass}, FAIL: ${fail}, SKIP: ${skip}`
+        `[ureport-reporter] Build ${build._id} (${project?.name ?? 'default'}) finalized — PASS: ${pass}, FAIL: ${fail}, SKIP: ${skip}`
       );
     }
 
     if (this.options.saveRelations !== false) {
-      const allTests = this.builds.flatMap((b) => b.tests);
       const seen = new Set<string>();
-      for (const test of allTests) {
-        if (seen.has(test.uid)) continue;
-        seen.add(test.uid);
-        const relation = mapTestToRelationPayload(test, this.options);
+      for (const t of allMappedTests) {
+        if (seen.has(t.uid)) continue;
+        seen.add(t.uid);
+        const relation = mapTestToRelationPayload(t, this.options);
         this.collectedRelations.push(relation);
         await this.client.saveTestRelation(relation);
       }
@@ -144,18 +145,18 @@ export class UReportReporter implements Reporter {
 
     if (this.options.outputFile) {
       const { writeFile } = await import('fs/promises');
-      const output = this.builds.length === 1
+      const output = buildRecords.length === 1
         ? JSON.stringify(
             {
-              build:     this.builds[0].payload,
-              tests:     this.builds[0].tests,
+              build:     buildRecords[0].payload,
+              tests:     buildRecords[0].tests,
               relations: this.collectedRelations,
             },
             null, 2
           )
         : JSON.stringify(
             {
-              builds:    this.builds.map((b) => ({ project: b.project.name, build: b.payload, tests: b.tests })),
+              builds:    buildRecords.map(b => ({ project: b.project?.name ?? 'default', build: b.payload, tests: b.tests })),
               relations: this.collectedRelations,
             },
             null, 2
@@ -169,16 +170,12 @@ export class UReportReporter implements Reporter {
     return false;
   }
 
-  private getBuildForTest(test: TestCase): BuildRecord {
+  private getProjectForTest(test: TestCase): FullProject | undefined {
     let suite: Suite | undefined = test.parent;
     while (suite) {
-      const project = suite.project();
-      if (project) {
-        const record = this.builds.find((b) => b.project.name === project.name);
-        if (record) return record;
-      }
+      if (suite.type === 'project') return suite.project() ?? undefined;
       suite = suite.parent;
     }
-    return this.builds[0]!;
+    return undefined;
   }
 }
