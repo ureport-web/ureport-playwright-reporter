@@ -176,7 +176,7 @@ describe("scenario: default config", () => {
       unknown
     >;
     // fixture config has no explicit browser — Playwright defaults to chromium
-    expect(body.browser).toBe("CHROMIUM");
+    expect(body.browser).toBe("CHROME");
   });
 
   test("buildId from server response is stored and used in all subsequent calls", () => {
