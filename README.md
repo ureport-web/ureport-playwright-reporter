@@ -56,9 +56,9 @@ export default defineConfig({
         browser: "CHROME", // overrides auto-detection
         device: "MOBILE-PIXEL 5", // overrides auto-detection
         platform: "linux", // overrides auto-detection
-        platform_version: "22.04",
+        platform_version: "22.04", // overrides auto-detection
         stage: "staging",
-        version: "1.4.2", // app version under test
+        version: "1.4.2",
 
         // --- environment & settings (auto-detected from Playwright config) ---
         environments: { baseURL: "https://staging.example.com" },
@@ -69,6 +69,12 @@ export default defineConfig({
         includeSteps: true, // send step-level detail (default: true)
         includeScreenshots: true, // embed screenshots as base64 (default: true)
         saveRelations: true, // save test relations after build (default: true)
+
+        // --- test transform (optional) ---
+        testTransform: (testCase, ctx) => {
+          // extract structured data from test name or compute a cleaner display name
+          return {};
+        },
       },
     ],
   ],
@@ -99,6 +105,7 @@ export default defineConfig({
 | `autoDetectPlatform`   | `boolean`                 | No       | `true`        | Set to false to disable auto-detection of platform and platform_version                                                                                                                                                                                |
 | `saveRelations`        | `boolean`                 | No       | `true`        | Save test relation records after the build                                                                                                                                                                                                             |
 | `quickInfoAnnotations` | `string[]`                | No       | `[]`          | Annotation types treated as execution-specific quick info. Values are stored per-test-run in `test.info.quickInfo` and surfaced in the UReport test detail view with a one-click copy button. Never saved to test relations (values differ every run). |
+| `testTransform`        | `function`                | No       | —             | Optional function called for every test before mapping. Return `name` to override the display name and UID; return `relations` to inject custom key/value pairs into the test relation's `customs`. See [testTransform](#testtransform). |
 
 ---
 
@@ -217,20 +224,54 @@ Because these values change every run they are **never** persisted in test relat
 quickInfoAnnotations: ["trace_url", "session_id", "log_url"];
 
 // in a test (or a beforeEach / fixture):
-test
-  .info()
-  .annotations.push({
-    type: "trace_url",
-    description: `https://trace.playwright.dev/?trace=${traceUrl}`,
-  });
+test.info().annotations.push({
+  type: "trace_url",
+  description: `https://trace.playwright.dev/?trace=${traceUrl}`,
+});
 test.info().annotations.push({ type: "session_id", description: sessionId });
-test
-  .info()
-  .annotations.push({
-    type: "log_url",
-    description: `https://logs.example.com/runs/${runId}`,
-  });
+test.info().annotations.push({
+  type: "log_url",
+  description: `https://logs.example.com/runs/${runId}`,
+});
 ```
+
+### testTransform
+
+`testTransform` is an optional function that runs for every test before it is mapped to a UReport payload. Use it to extract structured data from the test name (e.g. a company code embedded in the title) or to compute a cleaner display name — without needing to add annotations to every test.
+
+```ts
+// playwright.config.ts
+reporter: [
+  [
+    "ureport-playwright-reporter",
+    {
+      browser: "chrome",
+      testTransform: (testCase, ctx) => {
+        // e.g. title: "4Y-425 canvasSsfBiddingTest-Cash-1pax-1segment"
+        const match = testCase.title.match(/^(\w+)-(\d+)\s+(.+)/);
+        if (!match) return {};
+        return {
+          // Overrides both the display name and the UID for this test
+          name: `[${match[1]}] ${match[3]} | ${ctx.browser}`,
+          // "[4Y] canvasSsfBiddingTest-Cash-1pax-1segment | chrome"
+          relations: {
+            companyCode: match[1], // "4Y"  → stored in customs.companyCode
+            companyId: match[2],   // "425" → stored in customs.companyId
+          },
+        };
+      },
+    },
+  ],
+];
+```
+
+**Priority rules:**
+
+- `name` — overrides both the display name and the UID. A `ureport-uid` annotation on the test always takes precedence over the transformed name for the UID.
+- `relations` — keys are seeded into `info` *before* the annotation loop, so an annotation with the same key will override the transform value.
+- The second argument `ctx` exposes the build-level fields set in options: `browser`, `device`, `platform`, `platform_version`, `stage`, `version`, `team`.
+
+---
 
 ### Override test UID
 
@@ -282,12 +323,10 @@ Use `test.info().attach()` inside a `test.step()` to attach structured content. 
 
 ```ts
 test("login API returns token", async ({ request }) => {
-  test
-    .info()
-    .annotations.push({
-      type: "ureport-uid",
-      description: "auth-login-api-001",
-    });
+  test.info().annotations.push({
+    type: "ureport-uid",
+    description: "auth-login-api-001",
+  });
 
   const response = await request.post("/api/login", {
     data: { username: "alice", password: "secret" },

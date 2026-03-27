@@ -1,3 +1,18 @@
+export interface TestTransformResult {
+  name?: string;                                  // display name + UID override
+  relations?: Record<string, string | string[]>;  // extracted fields → saved as customs
+}
+
+export interface TestTransformContext {
+  browser?: string;
+  device?: string;
+  platform?: string;
+  platform_version?: string;
+  stage?: string;
+  version?: string;
+  team?: string;
+}
+
 export interface UReportTestRelationPayload {
   uid: string;
   product: string;

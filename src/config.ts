@@ -1,3 +1,6 @@
+import type { TestCase } from '@playwright/test/reporter';
+import type { TestTransformResult, TestTransformContext } from './types.js';
+
 export interface UReportReporterOptions {
   serverUrl: string;
   apiToken: string;
@@ -35,6 +38,15 @@ export interface UReportReporterOptions {
    * Example: ['env', 'build_url', 'run_id']
    */
   quickInfoAnnotations?: string[];
+  /**
+   * Optional transform applied to each test before mapping.
+   * - Return `name` to override the display name AND the UID (unless the test
+   *   has a `ureport-uid` annotation, which always takes precedence).
+   * - Return `relations` to inject custom key/value pairs into customs;
+   *   explicit annotations will override these if they share the same key.
+   * - Second argument `ctx` gives access to build-level metadata (browser, device, etc.)
+   */
+  testTransform?: (testCase: TestCase, ctx: TestTransformContext) => TestTransformResult;
 }
 
 export const DEFAULT_OPTIONS = {

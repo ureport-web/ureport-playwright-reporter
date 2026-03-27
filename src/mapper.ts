@@ -15,6 +15,7 @@ import type {
   UReportTestRelationPayload,
   UReportTestInfo,
   UReportStatus,
+  TestTransformContext,
 } from "./types.js";
 import type { UReportReporterOptions } from "./config.js";
 
@@ -63,7 +64,7 @@ export function detectBrowser(project: FullProject): string | undefined {
     return channel.toUpperCase();
   }
   const browserName =
-    project.use.browserName || project.use.defaultBrowserType || "chromium";
+    project.use.browserName || project.use.defaultBrowserType || "CHROME";
   if (browserName === "webkit") return "SAFARI";
   return browserName.toUpperCase();
 }
@@ -124,14 +125,14 @@ export function extractTags(testCase: TestCase): string[] {
   return [...tags];
 }
 
-export function generateUid(testCase: TestCase): string {
+export function generateUid(testCase: TestCase, transformedName?: string): string {
   const ureportAnnotation = testCase.annotations.find(
     (a) => a.type === "ureport-uid",
   );
   if (ureportAnnotation?.description) {
-    return ureportAnnotation.description;
+    return ureportAnnotation.description; // annotation wins
   }
-  return testCase.title;
+  return transformedName ?? testCase.title; // transform name used if present
 }
 
 // Internal categories Playwright creates as implementation details — not user steps
@@ -320,6 +321,28 @@ export function mapTestToPayload(
     duration: formatDuration(result.duration),
   };
 
+  // Run user-defined testTransform: seed relations before annotation loop
+  // so annotations can override; capture name override for uid + display name.
+  let transformedName: string | undefined;
+  if (options.testTransform) {
+    const ctx: TestTransformContext = {
+      browser: options.browser,
+      device: options.device,
+      platform: options.platform,
+      platform_version: options.platform_version,
+      stage: options.stage,
+      version: options.version,
+      team: options.team,
+    };
+    const tr = options.testTransform(testCase, ctx);
+    transformedName = tr.name;
+    if (tr.relations) {
+      for (const [key, value] of Object.entries(tr.relations)) {
+        info[key] = value;
+      }
+    }
+  }
+
   const ARRAY_ANNOTATION_TYPES = new Set(["components", "teams"]);
   const quickInfoSet = new Set(options.quickInfoAnnotations ?? []);
 
@@ -347,8 +370,8 @@ export function mapTestToPayload(
   }
 
   const payload: UReportTestPayload = {
-    uid: generateUid(testCase),
-    name: testCase.title,
+    uid: generateUid(testCase, transformedName),
+    name: transformedName ?? testCase.title,
     build: buildId,
     status: mapStatus(result.status, isRerun),
     start_time: startTime.toISOString(),

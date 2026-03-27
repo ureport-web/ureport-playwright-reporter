@@ -435,6 +435,125 @@ describe('quickInfo annotations', () => {
   });
 });
 
+describe('testTransform option', () => {
+  test('testTransform returns name → payload.name uses it', () => {
+    const tc = makeTestCase({ title: '4Y-425 canvasSsfBiddingTest' });
+    const payload = mapTestToPayload(tc, makeResult(), 'build-1', [],
+      makeOptions({ testTransform: () => ({ name: '[4Y] canvasSsfBiddingTest' }) }),
+      '/project');
+    expect(payload.name).toBe('[4Y] canvasSsfBiddingTest');
+  });
+
+  test('testTransform returns name → payload.uid uses transformed name', () => {
+    const tc = makeTestCase({ title: '4Y-425 canvasSsfBiddingTest' });
+    const payload = mapTestToPayload(tc, makeResult(), 'build-1', [],
+      makeOptions({ testTransform: () => ({ name: '[4Y] canvasSsfBiddingTest' }) }),
+      '/project');
+    expect(payload.uid).toBe('[4Y] canvasSsfBiddingTest');
+  });
+
+  test('ureport-uid annotation always wins over transformedName for uid', () => {
+    const tc = makeTestCase({
+      title: '4Y-425 canvasSsfBiddingTest',
+      annotations: [{ type: 'ureport-uid', description: 'STABLE-UID-001' }],
+    });
+    const payload = mapTestToPayload(tc, makeResult(), 'build-1', [],
+      makeOptions({ testTransform: () => ({ name: '[4Y] canvasSsfBiddingTest' }) }),
+      '/project');
+    expect(payload.uid).toBe('STABLE-UID-001');
+    expect(payload.name).toBe('[4Y] canvasSsfBiddingTest');
+  });
+
+  test('testTransform returns empty object → payload.name and uid fall back to testCase.title', () => {
+    const tc = makeTestCase({ title: 'plain test' });
+    const payload = mapTestToPayload(tc, makeResult(), 'build-1', [],
+      makeOptions({ testTransform: () => ({}) }),
+      '/project');
+    expect(payload.name).toBe('plain test');
+    expect(payload.uid).toBe('plain test');
+  });
+
+  test('testTransform not provided → no change in behavior', () => {
+    const tc = makeTestCase({ title: 'plain test' });
+    const payload = mapTestToPayload(tc, makeResult(), 'build-1', [], makeOptions(), '/project');
+    expect(payload.name).toBe('plain test');
+    expect(payload.uid).toBe('plain test');
+  });
+
+  test('testTransform returns relations → they appear as info keys', () => {
+    const tc = makeTestCase({ title: '4Y-425 canvasSsfBiddingTest' });
+    const payload = mapTestToPayload(tc, makeResult(), 'build-1', [],
+      makeOptions({
+        testTransform: () => ({
+          relations: { companyCode: '4Y', companyId: '425' },
+        }),
+      }),
+      '/project');
+    expect(payload.info?.['companyCode']).toBe('4Y');
+    expect(payload.info?.['companyId']).toBe('425');
+  });
+
+  test('testTransform relations flow into rel.customs via mapTestToRelationPayload', () => {
+    const tc = makeTestCase({ title: '4Y-425 canvasSsfBiddingTest' });
+    const opts = makeOptions({
+      testTransform: () => ({
+        relations: { companyCode: '4Y', companyId: '425' },
+      }),
+    });
+    const payload = mapTestToPayload(tc, makeResult(), 'build-1', [], opts, '/project');
+    const rel = mapTestToRelationPayload(payload, opts);
+    expect(rel.customs?.['companyCode']).toBe('4Y');
+    expect(rel.customs?.['companyId']).toBe('425');
+  });
+
+  test('annotation overrides transform relation when both set the same key', () => {
+    const tc = makeTestCase({
+      title: '4Y-425 canvasSsfBiddingTest',
+      annotations: [{ type: 'companyCode', description: 'OVERRIDE' }],
+    });
+    const payload = mapTestToPayload(tc, makeResult(), 'build-1', [],
+      makeOptions({
+        testTransform: () => ({ relations: { companyCode: '4Y' } }),
+      }),
+      '/project');
+    expect(payload.info?.['companyCode']).toBe('OVERRIDE');
+  });
+
+  test('testTransform relation with string[] value is stored as-is', () => {
+    const tc = makeTestCase({ title: 'my test' });
+    const payload = mapTestToPayload(tc, makeResult(), 'build-1', [],
+      makeOptions({
+        testTransform: () => ({ relations: { markets: ['US', 'EU'] } }),
+      }),
+      '/project');
+    expect(payload.info?.['markets']).toEqual(['US', 'EU']);
+  });
+
+  test('ctx passed to testTransform contains browser/device/platform from options', () => {
+    const tc = makeTestCase({ title: 'my test' });
+    let capturedCtx: Record<string, unknown> = {};
+    mapTestToPayload(tc, makeResult(), 'build-1', [],
+      makeOptions({
+        browser: 'CHROME',
+        device: 'DESKTOP',
+        platform: 'macOS',
+        platform_version: '14.0',
+        stage: 'staging',
+        version: '1.2.3',
+        team: 'alpha',
+        testTransform: (_tc, ctx) => { capturedCtx = ctx as Record<string, unknown>; return {}; },
+      }),
+      '/project');
+    expect(capturedCtx['browser']).toBe('CHROME');
+    expect(capturedCtx['device']).toBe('DESKTOP');
+    expect(capturedCtx['platform']).toBe('macOS');
+    expect(capturedCtx['platform_version']).toBe('14.0');
+    expect(capturedCtx['stage']).toBe('staging');
+    expect(capturedCtx['version']).toBe('1.2.3');
+    expect(capturedCtx['team']).toBe('alpha');
+  });
+});
+
 function makeProject(use: Record<string, unknown>): FullProject {
   return { use } as unknown as FullProject;
 }
