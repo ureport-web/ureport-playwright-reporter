@@ -574,8 +574,8 @@ function makeProject(use: Record<string, unknown>): FullProject {
 }
 
 describe('detectBrowser', () => {
-  test('chromium project → CHROMIUM', () => {
-    expect(detectBrowser(makeProject({ browserName: 'chromium' }))).toBe('CHROMIUM');
+  test('chromium project → CHROME', () => {
+    expect(detectBrowser(makeProject({ browserName: 'chromium' }))).toBe('CHROME');
   });
 
   test('webkit project → SAFARI', () => {

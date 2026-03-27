@@ -66,6 +66,7 @@ export function detectBrowser(project: FullProject): string | undefined {
   const browserName =
     project.use.browserName || project.use.defaultBrowserType || "CHROME";
   if (browserName === "webkit") return "SAFARI";
+  if (browserName === "chromium") return "CHROME";
   return browserName.toUpperCase();
 }
 

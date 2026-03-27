@@ -156,9 +156,9 @@ describe("detectBrowser", () => {
     );
   });
 
-  test("chromium browserName → CHROMIUM", () => {
+  test("chromium browserName → CHROME", () => {
     expect(detectBrowser(makeProject({ browserName: "chromium" }))).toBe(
-      "CHROMIUM",
+      "CHROME",
     );
   });
 
@@ -179,7 +179,7 @@ describe("detectBrowser", () => {
 
   test("falls back to defaultBrowserType when browserName not set", () => {
     expect(detectBrowser(makeProject({ defaultBrowserType: "chromium" }))).toBe(
-      "CHROMIUM",
+      "CHROME",
     );
   });
 
