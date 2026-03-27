@@ -113,7 +113,7 @@ export class UReportReporter implements Reporter {
       const build = await this.client.createBuild(payload);
 
       const mapped = pending.map(({ test, result, steps }) =>
-        mapTestToPayload(test, result, build._id, steps, this.options, this.rootDir)
+        mapTestToPayload(test, result, build._id, steps, this.options, this.rootDir, browser, device)
       );
       allMappedTests.push(...mapped);
       buildRecords.push({ project, payload, tests: mapped });

@@ -309,6 +309,8 @@ export function mapTestToPayload(
   steps: TestStep[],
   options: UReportReporterOptions,
   rootDir: string,
+  resolvedBrowser?: string,
+  resolvedDevice?: string,
 ): UReportTestPayload {
   const isRerun = result.retry > 0;
   const startTime = result.startTime;
@@ -326,8 +328,8 @@ export function mapTestToPayload(
   let transformedName: string | undefined;
   if (options.testTransform) {
     const ctx: TestTransformContext = {
-      browser: options.browser,
-      device: options.device,
+      browser: resolvedBrowser ?? options.browser,
+      device: resolvedDevice ?? options.device,
       platform: options.platform,
       platform_version: options.platform_version,
       stage: options.stage,

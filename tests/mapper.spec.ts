@@ -552,6 +552,21 @@ describe('testTransform option', () => {
     expect(capturedCtx['version']).toBe('1.2.3');
     expect(capturedCtx['team']).toBe('alpha');
   });
+
+  test('ctx uses resolvedBrowser/resolvedDevice over options.browser/device (auto-detected values)', () => {
+    const tc = makeTestCase({ title: 'my test' });
+    let capturedCtx: Record<string, unknown> = {};
+    mapTestToPayload(tc, makeResult(), 'build-1', [],
+      makeOptions({
+        testTransform: (_tc, ctx) => { capturedCtx = ctx as Record<string, unknown>; return {}; },
+      }),
+      '/project',
+      'CHROMIUM',   // resolvedBrowser (auto-detected by reporter)
+      'MOBILE-IPHONE', // resolvedDevice (auto-detected by reporter)
+    );
+    expect(capturedCtx['browser']).toBe('CHROMIUM');
+    expect(capturedCtx['device']).toBe('MOBILE-IPHONE');
+  });
 });
 
 function makeProject(use: Record<string, unknown>): FullProject {
