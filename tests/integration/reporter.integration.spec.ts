@@ -828,11 +828,11 @@ describe("scenario: multi-project (chromium + firefox)", () => {
     expect(server.requestsTo("/api/build")).toHaveLength(2);
   });
 
-  test("one build has browser CHROMIUM", () => {
+  test("one build has browser CHROME", () => {
     const browsers = server
       .requestsTo("/api/build")
       .map((r) => (r.body as Record<string, unknown>).browser);
-    expect(browsers).toContain("CHROMIUM");
+    expect(browsers).toContain("CHROME");
   });
 
   test("one build has browser FIREFOX", () => {
