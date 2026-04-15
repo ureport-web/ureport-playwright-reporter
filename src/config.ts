@@ -39,6 +39,12 @@ export interface UReportReporterOptions {
    */
   quickInfoAnnotations?: string[];
   /**
+   * Auto-derive failure.token from the first user-code frame in the stack trace.
+   * The token takes the form "relative/path/to/test.spec.ts:line".
+   * Default: true. Set to false to disable token derivation entirely.
+   */
+  autoToken?: boolean;
+  /**
    * Optional transform applied to each test before mapping.
    * - Return `name` to override the display name AND the UID (unless the test
    *   has a `ureport-uid` annotation, which always takes precedence).
@@ -53,6 +59,7 @@ export const DEFAULT_OPTIONS = {
   batchSize: 50,
   includeSteps: true,
   includeScreenshots: true,
+  autoToken: true,
 } as const;
 
 const REQUIRED_FIELDS: (keyof UReportReporterOptions)[] = [

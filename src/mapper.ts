@@ -303,6 +303,19 @@ export function categorizeSteps(
   return { setup, body, teardown };
 }
 
+function extractTokenFromStack(stack: string, rootDir: string): string | undefined {
+  for (const line of stack.split('\n')) {
+    const m = line.match(/at\s+(?:.*\s+\()?([^()\n]+):(\d+):\d+\)?/);
+    if (!m) continue;
+    const filePath = m[1].trim();
+    if (filePath.includes('node_modules') || filePath.startsWith('internal/')) continue;
+    const rel = relative(rootDir, filePath);
+    if (rel.startsWith('..')) continue; // outside project root — skip
+    return `${rel}:${m[2]}`;
+  }
+  return undefined;
+}
+
 export function mapTestToPayload(
   testCase: TestCase,
   result: TestResult,
@@ -388,9 +401,15 @@ export function mapTestToPayload(
     firstError &&
     (result.status === "failed" || result.status === "timedOut")
   ) {
+    const stack = firstError.stack;
+    const token =
+      (options.autoToken ?? true) && stack
+        ? extractTokenFromStack(stack, rootDir)
+        : undefined;
     payload.failure = {
       error_message: firstError.message ?? String(firstError),
-      stack_trace: firstError.stack,
+      stack_trace: stack,
+      ...(token !== undefined ? { token } : {}),
     };
   }
 
@@ -458,11 +477,11 @@ export function mapTestToRelationPayload(
   if (info.file) relation.file = info.file as string;
   if (info.path !== undefined) relation.path = info.path as string;
   if ((info.tags as string[] | undefined)?.length)
-    relation.tags = info.tags as string[];
+    relation.tags = (info.tags as string[]).map((t) => ({ name: t }));
   if ((info.components as string[] | undefined)?.length)
-    relation.components = info.components as string[];
+    relation.components = (info.components as string[]).map((c) => ({ name: c }));
   if ((info.teams as string[] | undefined)?.length)
-    relation.teams = info.teams as string[];
+    relation.teams = (info.teams as string[]).map((t) => ({ name: t }));
 
   const customs: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(info)) {

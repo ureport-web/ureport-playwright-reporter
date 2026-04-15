@@ -19,9 +19,9 @@ export interface UReportTestRelationPayload {
   type: string;
   file?: string;
   path?: string;
-  components?: string[];
-  teams?: string[];
-  tags?: string[];
+  components?: { name: string }[];
+  teams?: { name: string }[];
+  tags?: { name: string }[];
   customs?: Record<string, unknown>;
 }
 
@@ -63,6 +63,7 @@ export interface UReportStepPayload {
 export interface UReportFailure {
   error_message: string;
   stack_trace?: string;
+  token?: string;   // auto-derived: "relative/path/to/file.spec.ts:line"
 }
 
 // UReport does not have RERUN_FAIL / RERUN_SKIP status values.
