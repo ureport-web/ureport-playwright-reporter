@@ -105,6 +105,8 @@ export default defineConfig({
 | `autoDetectPlatform`   | `boolean`                 | No       | `true`        | Set to false to disable auto-detection of platform and platform_version                                                                                                                                                                                |
 | `saveRelations`        | `boolean`                 | No       | `true`        | Save test relation records after the build                                                                                                                                                                                                             |
 | `quickInfoAnnotations` | `string[]`                | No       | `[]`          | Annotation types treated as execution-specific quick info. Values are stored per-test-run in `test.info.quickInfo` and surfaced in the UReport test detail view with a one-click copy button. Never saved to test relations (values differ every run). |
+| `autoToken`            | `boolean`                 | No       | `true`        | When true, automatically extracts a code-location token from the first user-code frame in the failure stack trace. Stored as `failure.token` in the format `path/to/test.spec.ts:42`. Set to `false` to disable. |
+| `outputFile`           | `string`                  | No       | —             | Write the full submitted payload to this JSON file after the run. Useful for debugging. Contains `build`, `tests`, and `relations`. |
 | `testTransform`        | `function`                | No       | —             | Optional function called for every test before mapping. Return `name` to override the display name and UID; return `relations` to inject custom key/value pairs into the test relation's `customs`. See [testTransform](#testtransform). |
 
 ---
@@ -376,6 +378,31 @@ await test.info().attach("server-log", {
 
 ---
 
+## Status mapping
+
+| Playwright status | `retry` | UReport status | `is_rerun` |
+|---|---|---|---|
+| `passed` | 0 | `PASS` | `false` |
+| `passed` | > 0 | `RERUN_PASS` | `true` |
+| `failed` | any | `FAIL` | `retry > 0` |
+| `timedOut` | any | `FAIL` | `retry > 0` |
+| `skipped` | any | `SKIP` | `retry > 0` |
+| `interrupted` | any | `SKIP` | `retry > 0` |
+
+## Tags and the `@` prefix
+
+Tags are stored **with** the `@` prefix in UReport (e.g. `@smoke`, not `smoke`). This applies to both Playwright native tags and title-extracted tags:
+
+```ts
+// Stored as "@smoke", "@auth"
+test("login", { tag: ["@smoke", "@auth"] }, async ({ page }) => { ... });
+
+// Stored as "@smoke"
+test("login @smoke", async ({ page }) => { ... });
+```
+
+When filtering tests in UReport by tag, use the `@` prefix (e.g. `@smoke`).
+
 ## How it works
 
 1. **`onBegin`** — validates config, authenticates with the API token, creates a build record
@@ -384,6 +411,10 @@ await test.info().attach("server-log", {
 4. **`onEnd`** — flushes all results in batches, finalizes the build, optionally saves test relations
 
 The reporter sets `printsToStdio()` to `false` so standard Playwright reporters (e.g. `list`, `dot`) still show their normal output alongside it.
+
+### Failure token
+
+When a test fails, the reporter automatically scans the stack trace for the first user-code frame (skipping `node_modules` and Node internals) and adds `failure.token` to the payload in the format `path/to/test.spec.ts:42`. This lets UReport group and link failures by source location. Disable with `autoToken: false`.
 
 ---
 
