@@ -339,9 +339,9 @@ describe('mapTestToRelationPayload', () => {
     );
     expect(rel.file).toBe('a.spec.ts');
     expect(rel.path).toBe('tests');
-    expect(rel.tags).toEqual(['@smoke']);
-    expect(rel.components).toEqual(['auth']);
-    expect(rel.teams).toEqual(['backend']);
+    expect(rel.tags).toEqual([{ name: '@smoke' }]);
+    expect(rel.components).toEqual([{ name: 'auth' }]);
+    expect(rel.teams).toEqual([{ name: 'backend' }]);
   });
 
   test('puts non-reserved info keys into customs', () => {

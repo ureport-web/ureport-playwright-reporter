@@ -346,10 +346,10 @@ describe("scenario: default config", () => {
           "components and teams test",
       )!;
     expect((req.body as Record<string, unknown>).components).toEqual([
-      "auth",
-      "checkout",
+      { name: "auth" },
+      { name: "checkout" },
     ]);
-    expect((req.body as Record<string, unknown>).teams).toEqual(["backend"]);
+    expect((req.body as Record<string, unknown>).teams).toEqual([{ name: "backend" }]);
   });
 
   test("custom annotations go into customs on the relation", () => {
